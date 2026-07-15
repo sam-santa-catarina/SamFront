@@ -53,23 +53,27 @@
               [class.border-red-400]="form.controls.email.invalid && form.controls.email.touched"
             />
           </div>
-          @if (form.controls.email.invalid && form.controls.email.touched) {
-            <p id="email-error" class="mt-1.5 text-xs text-red-500">
-              @if (form.controls.email.hasError('required')) {
-                Ingresa tu correo electrónico.
-              } @else if (form.controls.email.hasError('email')) {
-                Ingresa un correo electrónico válido.
-              } @else if (form.controls.email.hasError('minlength')) {
-                El correo debe tener al menos 6 caracteres.
-              } @else if (form.controls.email.hasError('maxlength')) {
-                El correo no debe exceder 254 caracteres.
-              } @else if (form.controls.email.hasError('whitespace')) {
-                El correo no debe contener espacios.
-              } @else if (form.controls.email.hasError('emoji')) {
-                El correo no debe contener emojis.
-              }
-            </p>
-          }
+          <p
+  id="email-error"
+  class="mt-1.5 min-h-[16px] text-xs text-red-500"
+  [class.invisible]="!(form.controls.email.invalid && form.controls.email.touched)"
+>
+  @if (form.controls.email.hasError('required')) {
+    Ingresa tu correo electrónico.
+  } @else if (form.controls.email.hasError('email')) {
+    Ingresa un correo electrónico válido.
+  } @else if (form.controls.email.hasError('minlength')) {
+    El correo debe tener al menos 6 caracteres.
+  } @else if (form.controls.email.hasError('maxlength')) {
+    El correo no debe exceder 254 caracteres.
+  } @else if (form.controls.email.hasError('whitespace')) {
+    El correo no debe contener espacios.
+  } @else if (form.controls.email.hasError('emoji')) {
+    El correo no debe contener emojis.
+  } @else {
+    &nbsp;
+  }
+</p>
         </div>
 
         <div>
@@ -110,17 +114,21 @@
               }
             </button>
           </div>
-          @if (form.controls.password.invalid && form.controls.password.touched) {
-            <p id="password-error" class="mt-1.5 text-xs text-red-500">
-              @if (form.controls.password.hasError('required')) {
-                Ingresa tu contraseña.
-              } @else if (form.controls.password.hasError('whitespace')) {
-                La contraseña no debe contener espacios.
-              } @else if (form.controls.password.hasError('emoji')) {
-                La contraseña no debe contener emojis.
-              }
-            </p>
-          }
+          <p
+  id="password-error"
+  class="mt-1.5 min-h-[16px] text-xs text-red-500"
+  [class.invisible]="!(form.controls.password.invalid && form.controls.password.touched)"
+>
+  @if (form.controls.password.hasError('required')) {
+    Ingresa tu contraseña.
+  } @else if (form.controls.password.hasError('whitespace')) {
+    La contraseña no debe contener espacios.
+  } @else if (form.controls.password.hasError('emoji')) {
+    La contraseña no debe contener emojis.
+  } @else {
+    &nbsp;
+  }
+</p>
         </div>
 
         @if (errorMessage()) {
