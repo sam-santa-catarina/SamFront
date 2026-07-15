@@ -1,8 +1,8 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Observable, catchError, map, tap, throwError } from 'rxjs';
+import { Observable, catchError, map, of, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { LoginResponse, ApiErrorBody } from '../models/auth.model';
+import { LoginResponse, RefreshResponse, ApiErrorBody } from '../models/auth.model';
 
 export interface LoginResult {
   role: number;
@@ -25,6 +25,8 @@ export class Auth {
 
   private readonly lockouts = new Map<string, string>();
 
+  readonly requiresPasswordChange = signal(false);
+
   login(correo: string, contrasena: string): Observable<LoginResult> {
     return this.http
       .post<LoginResponse>(`${this.baseUrl}/login`, { correo, contrasena }, { withCredentials: true })
@@ -32,6 +34,7 @@ export class Auth {
         tap((res) => {
           this.accessToken.set(res.tokens.access_token);
           this.currentUser.set(res.user);
+          this.requiresPasswordChange.set(res.requiere_cambio_contrasena);
           this.lockouts.delete(correo);
         }),
         map((res) => ({
@@ -48,26 +51,49 @@ export class Auth {
       );
   }
 
+  markPasswordChanged(): void {
+    this.requiresPasswordChange.set(false);
+  }
+
+  /**
+   * Refresca el access_token usando la cookie httpOnly.
+   * También repuebla currentUser y requiresPasswordChange,
+   * porque el backend ahora devuelve la misma forma que login.
+   */
   refreshToken(): Observable<{ access_token: string; expires_in: string }> {
     return this.http
-      .post<{ message: string; tokens: { access_token: string; expires_in: string } }>(
-        `${this.baseUrl}/refresh-token`,
-        {},
-        { withCredentials: true }
-      )
+      .post<RefreshResponse>(`${this.baseUrl}/refresh-token`, {}, { withCredentials: true })
       .pipe(
-        tap((res) => this.accessToken.set(res.tokens.access_token)),
+        tap((res) => {
+          this.accessToken.set(res.tokens.access_token);
+          this.currentUser.set(res.user);
+          this.requiresPasswordChange.set(res.requiere_cambio_contrasena);
+        }),
+        map((res) => res.tokens),
         catchError((err: HttpErrorResponse) =>
           throwError(() => this.toAuthError(err, err.error as ApiErrorBody))
         ),
-      ) as unknown as Observable<{ access_token: string; expires_in: string }>;
+      );
+  }
+
+  /**
+   * Se llama una vez al arrancar la app (ver app.config.ts).
+   * Si no hay cookie válida, falla en silencio y la app arranca
+   * con sesión vacía (los guards se encargan de mandar a login).
+   */
+  restoreSession(): Observable<boolean> {
+    return this.refreshToken().pipe(
+      map(() => true),
+      catchError(() => of(false))
+    );
   }
 
   changePassword(contrasena_actual: string, contrasena_nueva: string): Observable<{ message: string }> {
     return this.http
       .post<{ message: string }>(
         `${this.baseUrl}/change-password`,
-        { contrasena_actual, contrasena_nueva }
+        { contrasena_actual, contrasena_nueva },
+        { withCredentials: true }
       )
       .pipe(
         catchError((err: HttpErrorResponse) =>
@@ -76,9 +102,25 @@ export class Auth {
       );
   }
 
-  logout(): void {
+  logout(): Observable<void> {
+    return this.http
+      .post<{ message: string }>(`${this.baseUrl}/logout`, {}, { withCredentials: true })
+      .pipe(
+        map(() => void 0),
+        tap(() => this.clearLocalSession()),
+        catchError(() => {
+          // Aunque el backend falle, limpiamos la sesión local para que
+          // el usuario no quede "atorado" viendo pantallas protegidas.
+          this.clearLocalSession();
+          return of(void 0);
+        })
+      );
+  }
+
+  private clearLocalSession(): void {
     this.accessToken.set(null);
     this.currentUser.set(null);
+    this.requiresPasswordChange.set(false);
   }
 
   getLockoutState(correo: string): { isLocked: boolean; remainingMinutes: number } {
@@ -93,16 +135,15 @@ export class Auth {
       return { isLocked: false, remainingMinutes: 0 };
     }
 
-    // Redondear hacia arriba para mostrar el minuto completo
     const remainingMinutes = Math.ceil(remainingMs / 60000);
     return { isLocked: true, remainingMinutes };
   }
 
   getRedirectRouteForRole(role: number): string {
     switch (role) {
-      case 1: return '/administrador/inicio'; // Administrador
-      case 2: return '/supervisor/inicio';    // Supervisor
-      case 3: return '/capturista/inicio';    // Capturista
+      case 1: return '/administrador/inicio';
+      case 2: return '/supervisor/inicio';
+      case 3: return '/capturista/inicio';
       default: return '/iniciar-sesion';
     }
   }

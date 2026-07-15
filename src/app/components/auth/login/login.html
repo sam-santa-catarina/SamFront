@@ -149,4 +149,179 @@
       © 2024 Gobierno Municipal de Santa Catarina. Todos los derechos reservados.
     </p>
   </div>
+
+  <!-- Modal: cambio de contraseña obligatorio -->
+  @if (auth.requiresPasswordChange()) {
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm px-4"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="forced-password-title">
+    <div class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-7 shadow-2xl">
+      <div class="text-center mb-5">
+        <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50">
+          <svg class="h-6 w-6 text-blue-900" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3" />
+            <rect x="4.5" y="10.5" width="15" height="9" rx="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <h2 id="forced-password-title" class="text-xl font-bold text-blue-900">Configura tu contraseña</h2>
+        <p class="mt-1 text-sm text-slate-500">
+          Como es tu primer ingreso al sistema, debes elegir una nueva contraseña antes de continuar.
+        </p>
+      </div>
+
+      <form [formGroup]="changePasswordForm" (ngSubmit)="onSubmitPasswordChange()" novalidate class="space-y-3">
+        <div>
+          <label for="nuevaContrasena" class="block text-sm font-semibold text-slate-700 mb-1">
+            Nueva contraseña
+          </label>
+          <div class="relative">
+            <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3" />
+                <rect x="4.5" y="10.5" width="15" height="9" rx="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <input
+              id="nuevaContrasena"
+              [type]="showNewPassword() ? 'text' : 'password'"
+              autocomplete="new-password"
+              formControlName="nuevaContrasena"
+              placeholder="Ingresa tu nueva contraseña"
+              [attr.aria-invalid]="changePasswordForm.controls.nuevaContrasena.invalid && changePasswordForm.controls.nuevaContrasena.touched"
+              aria-describedby="nuevaContrasena-error"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-2.5 pl-11 pr-11 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              [class.border-red-400]="changePasswordForm.controls.nuevaContrasena.invalid && changePasswordForm.controls.nuevaContrasena.touched" />
+            <button
+              type="button"
+              (click)="toggleNewPasswordVisibility()"
+              [attr.aria-label]="showNewPassword() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+              class="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600">
+              @if (showNewPassword()) {
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12c1.292 4.338 5.31 7.5 10.066 7.5.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+              </svg>
+              } @else {
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+              }
+            </button>
+          </div>
+          <p id="nuevaContrasena-error" class="mt-0.5 min-h-[14px] text-xs text-red-500"
+            [class.invisible]="!(changePasswordForm.controls.nuevaContrasena.invalid && changePasswordForm.controls.nuevaContrasena.touched)">
+            @if (changePasswordForm.controls.nuevaContrasena.hasError('required')) {
+            La contraseña es obligatoria.
+            } @else if (changePasswordForm.controls.nuevaContrasena.hasError('minLength')) {
+            Debe tener al menos 8 caracteres.
+            } @else if (changePasswordForm.controls.nuevaContrasena.hasError('maxLength')) {
+            No debe exceder 70 caracteres.
+            } @else if (changePasswordForm.controls.nuevaContrasena.hasError('upperCase')) {
+            Debe incluir al menos una letra mayúscula.
+            } @else if (changePasswordForm.controls.nuevaContrasena.hasError('lowerCase')) {
+            Debe incluir al menos una letra minúscula.
+            } @else if (changePasswordForm.controls.nuevaContrasena.hasError('number')) {
+            Debe incluir al menos un número.
+            } @else if (changePasswordForm.controls.nuevaContrasena.hasError('specialChar')) {
+            Debe incluir al menos un carácter especial.
+            } @else if (changePasswordForm.controls.nuevaContrasena.hasError('whitespace')) {
+            No debe contener espacios.
+            } @else if (changePasswordForm.controls.nuevaContrasena.hasError('emoji')) {
+            No debe contener emojis.
+            } @else {
+            &nbsp;
+            }
+          </p>
+        </div>
+
+        <div>
+          <label for="confirmarContrasena" class="block text-sm font-semibold text-slate-700 mb-1">
+            Confirmar contraseña
+          </label>
+          <div class="relative">
+            <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3" />
+                <rect x="4.5" y="10.5" width="15" height="9" rx="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <input
+              id="confirmarContrasena"
+              [type]="showConfirmPassword() ? 'text' : 'password'"
+              autocomplete="new-password"
+              formControlName="confirmarContrasena"
+              placeholder="Confirma tu nueva contraseña"
+              [attr.aria-invalid]="changePasswordForm.controls.confirmarContrasena.touched && (changePasswordForm.controls.confirmarContrasena.invalid || changePasswordForm.hasError('passwordMismatch'))"
+              aria-describedby="confirmarContrasena-error"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-2.5 pl-11 pr-11 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              [class.border-red-400]="changePasswordForm.controls.confirmarContrasena.touched && (changePasswordForm.controls.confirmarContrasena.invalid || changePasswordForm.hasError('passwordMismatch'))" />
+            <button
+              type="button"
+              (click)="toggleConfirmPasswordVisibility()"
+              [attr.aria-label]="showConfirmPassword() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+              class="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600">
+              @if (showConfirmPassword()) {
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12c1.292 4.338 5.31 7.5 10.066 7.5.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+              </svg>
+              } @else {
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+              }
+            </button>
+          </div>
+          <p id="confirmarContrasena-error" class="mt-0.5 min-h-[14px] text-xs text-red-500"
+            [class.invisible]="!(changePasswordForm.controls.confirmarContrasena.touched && (changePasswordForm.controls.confirmarContrasena.hasError('required') || changePasswordForm.hasError('passwordMismatch')))">
+            @if (changePasswordForm.controls.confirmarContrasena.hasError('required')) {
+            Confirma tu nueva contraseña.
+            } @else if (changePasswordForm.hasError('passwordMismatch')) {
+            Las contraseñas no coinciden.
+            } @else {
+            &nbsp;
+            }
+          </p>
+        </div>
+
+        @if (changePasswordError()) {
+        <div role="alert"
+          class="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+          <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+          </svg>
+          <span>{{ changePasswordError() }}</span>
+        </div>
+        }
+
+        <ul class="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-500 space-y-0.5">
+          <li>• Entre 8 y 70 caracteres</li>
+          <li>• Al menos una mayúscula, una minúscula y un número</li>
+          <li>• Al menos un carácter especial (por ejemplo: !@#$%)</li>
+          <li>• Sin espacios ni emojis</li>
+        </ul>
+
+        <button type="submit" [disabled]="changingPassword()"
+          class="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-900 py-3 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60">
+          @if (changingPassword()) {
+          <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z"></path>
+          </svg>
+          Guardando...
+          } @else {
+          Guardar y continuar
+          }
+        </button>
+      </form>
+    </div>
+  </div>
+  }
 </div>

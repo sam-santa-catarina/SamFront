@@ -27,6 +27,7 @@ export function passwordComplexityValidator(): ValidatorFn {
 
     const errors: ValidationErrors = {};
     if (value.length < 8) errors['minLength'] = true;
+    if (value.length > 70) errors['maxLength'] = true;
     if (!/[A-Z]/.test(value)) errors['upperCase'] = true;
     if (!/[a-z]/.test(value)) errors['lowerCase'] = true;
     if (!/\d/.test(value)) errors['number'] = true;
@@ -34,5 +35,22 @@ export function passwordComplexityValidator(): ValidatorFn {
     if (/\s/.test(value)) errors['whitespace'] = true;
 
     return Object.keys(errors).length > 0 ? errors : null;
+  };
+}
+
+/**
+ * Validador de grupo: compara nuevaContrasena / confirmarContrasena.
+ * Se aplica a nivel FormGroup, no a nivel control individual.
+ */
+export function passwordsMatchValidator(
+  passwordKey: string,
+  confirmKey: string
+): ValidatorFn {
+  return (group: AbstractControl): ValidationErrors | null => {
+    const password = group.get(passwordKey)?.value;
+    const confirm = group.get(confirmKey)?.value;
+
+    if (!confirm) return null;
+    return password === confirm ? null : { passwordMismatch: true };
   };
 }

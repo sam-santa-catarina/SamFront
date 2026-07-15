@@ -19,3 +19,13 @@ export interface ApiErrorBody {
   bloqueado_hasta?: string;
   errors?: string[];
 }
+
+export interface RefreshResponse {
+  message: string;
+  user: LoginResponse['user'];
+  requiere_cambio_contrasena: boolean;
+  tokens: {
+    access_token: string;
+    expires_in: string;
+  };
+}
