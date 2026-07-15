@@ -1,0 +1,168 @@
+<div class="min-h-screen w-full flex bg-white">
+  <div class="relative hidden lg:flex lg:w-1/2 flex-col justify-between overflow-hidden bg-gradient-to-b from-slate-50 to-blue-50 px-16 py-14">
+    
+    <div class="relative z-10 flex flex-col items-center text-center mt-10">
+  <img
+    src="/assets/img/logo-santa-catarina.png"
+    alt="Santa Catarina, Administración 2024-2027"
+    class="w-72 h-auto mb-4"
+  />
+
+  <p class="mt-3 text-lg font-medium text-blue-900">Sistema de Apoyos Municipales</p>
+</div>
+
+    <div class="relative z-10">
+      <p class="text-blue-900 font-semibold leading-snug">
+        ¡Juntos construimos<br />un mejor Santa Catarina!
+      </p>
+    </div>
+
+    <svg class="absolute bottom-0 left-0 w-full h-56 z-0" viewBox="0 0 800 220" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 140 C 200 90 350 190 550 130 C 650 100 750 140 800 120 L800 220 L0 220 Z" fill="#dbe8f8" />
+      <path d="M0 170 C 220 130 380 210 600 160 C 700 135 760 165 800 150 L800 220 L0 220 Z" fill="#bcd6f2" />
+      <path d="M0 200 C 250 175 420 220 800 190 L800 220 L0 220 Z" fill="#1e3a6e" />
+    </svg>
+  </div>
+
+  <div class="flex w-full lg:w-1/2 flex-col items-center justify-center px-6 py-12 bg-slate-50/40">
+    <div class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-10 shadow-xl shadow-slate-200/60">
+      <div class="text-center mb-8">
+        <h2 class="text-2xl font-bold text-blue-900">Iniciar sesión</h2>
+        <p class="mt-1 text-sm text-slate-500">Accede al sistema con tus credenciales</p>
+      </div>
+
+      <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate class="space-y-5">
+        <div>
+          <label for="email" class="block text-sm font-semibold text-slate-700 mb-1.5">Correo electrónico</label>
+          <div class="relative">
+            <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 20c0-3.31 3.58-6 8-6s8 2.69 8 6" />
+              </svg>
+            </span>
+            <input
+              id="email"
+              type="email"
+              autocomplete="username"
+              formControlName="email"
+              placeholder="Ingresa tu correo electrónico"
+              [attr.aria-invalid]="form.controls.email.invalid && form.controls.email.touched"
+              aria-describedby="email-error"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-3 pl-11 pr-4 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              [class.border-red-400]="form.controls.email.invalid && form.controls.email.touched"
+            />
+          </div>
+          @if (form.controls.email.invalid && form.controls.email.touched) {
+            <p id="email-error" class="mt-1.5 text-xs text-red-500">
+              @if (form.controls.email.hasError('required')) {
+                Ingresa tu correo electrónico.
+              } @else if (form.controls.email.hasError('email')) {
+                Ingresa un correo electrónico válido.
+              } @else if (form.controls.email.hasError('minlength')) {
+                El correo debe tener al menos 6 caracteres.
+              } @else if (form.controls.email.hasError('maxlength')) {
+                El correo no debe exceder 254 caracteres.
+              } @else if (form.controls.email.hasError('whitespace')) {
+                El correo no debe contener espacios.
+              } @else if (form.controls.email.hasError('emoji')) {
+                El correo no debe contener emojis.
+              }
+            </p>
+          }
+        </div>
+
+        <div>
+          <label for="password" class="block text-sm font-semibold text-slate-700 mb-1.5">Contraseña</label>
+          <div class="relative">
+            <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 1 0-9 0v3" />
+                <rect x="4.5" y="10.5" width="15" height="9" rx="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <input
+              id="password"
+              [type]="showPassword() ? 'text' : 'password'"
+              autocomplete="current-password"
+              formControlName="password"
+              placeholder="Ingresa tu contraseña"
+              [attr.aria-invalid]="form.controls.password.invalid && form.controls.password.touched"
+              aria-describedby="password-error"
+              class="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-3 pl-11 pr-11 text-sm text-slate-800 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              [class.border-red-400]="form.controls.password.invalid && form.controls.password.touched"
+            />
+            <button
+              type="button"
+              (click)="togglePasswordVisibility()"
+              [attr.aria-label]="showPassword() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+              class="absolute inset-y-0 right-3 flex items-center text-slate-400 hover:text-slate-600"
+            >
+              @if (showPassword()) {
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12c1.292 4.338 5.31 7.5 10.066 7.5.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+                </svg>
+              } @else {
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                </svg>
+              }
+            </button>
+          </div>
+          @if (form.controls.password.invalid && form.controls.password.touched) {
+            <p id="password-error" class="mt-1.5 text-xs text-red-500">
+              @if (form.controls.password.hasError('required')) {
+                Ingresa tu contraseña.
+              } @else if (form.controls.password.hasError('whitespace')) {
+                La contraseña no debe contener espacios.
+              } @else if (form.controls.password.hasError('emoji')) {
+                La contraseña no debe contener emojis.
+              }
+            </p>
+          }
+        </div>
+
+        @if (errorMessage()) {
+          <div role="alert" class="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+            <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+            </svg>
+            <span>
+              {{ errorMessage() }}
+              @if (isLocked() && lockRemainingSeconds() > 0) {
+                <span class="block font-medium mt-0.5">Tiempo restante: {{ lockRemainingSeconds() }}s</span>
+              }
+            </span>
+          </div>
+        }
+
+        <button
+          type="submit"
+          [disabled]="loading() || isLocked()"
+          class="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-900 py-3.5 text-sm font-semibold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          @if (loading()) {
+            <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z"></path>
+            </svg>
+            Iniciando sesión...
+          } @else {
+            Iniciar sesión
+          }
+        </button>
+      </form>
+
+      <div class="mt-5 text-center">
+        <a routerLink="/recuperar-contrasena" class="text-sm font-medium text-blue-700 hover:text-blue-800 hover:underline">
+          ¿Olvidaste tu contraseña?
+        </a>
+      </div>
+    </div>
+
+    <p class="mt-8 text-xs text-slate-400">
+      © 2024 Gobierno Municipal de Santa Catarina. Todos los derechos reservados.
+    </p>
+  </div>
+</div>
