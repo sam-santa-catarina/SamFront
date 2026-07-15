@@ -3,13 +3,12 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { interval } from 'rxjs';
-
-import { Auth } from '../../../services/auth';
+import { Auth, AuthError } from '../../../services/auth';
 import { noEmojiValidator, noWhitespaceValidator } from './login.validators';
 
 @Component({
   selector: 'app-login',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule],
   templateUrl: './login.html',
   styleUrl: './login.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -24,7 +23,7 @@ export class Login {
   readonly loading = signal(false);
   readonly errorMessage = signal<string | null>(null);
   readonly isLocked = signal(false);
-  readonly lockRemainingSeconds = signal(0);
+  readonly lockRemainingMinutes = signal(0);
 
   readonly form = this.fb.nonNullable.group({
     email: [
@@ -72,7 +71,7 @@ export class Login {
           const redirectTo = this.auth.getRedirectRouteForRole(response.role);
           this.router.navigateByUrl(redirectTo);
         },
-        error: (err: { code?: string; message?: string }) => {
+        error: (err: AuthError) => {
           this.loading.set(false);
 
           if (err.code === 'ACCOUNT_LOCKED') {
@@ -93,22 +92,27 @@ export class Login {
   private startLockoutCountdown(email: string): void {
     const lockout = this.auth.getLockoutState(email);
     this.isLocked.set(true);
-    this.lockRemainingSeconds.set(lockout.remainingSeconds);
+    this.lockRemainingMinutes.set(lockout.remainingMinutes);
     this.errorMessage.set(
-      'Demasiados intentos fallidos. Tu cuenta se bloqueó temporalmente.'
+      `Demasiados intentos fallidos. Intenta de nuevo en ${lockout.remainingMinutes} minuto(s).`
     );
 
-    interval(1000)
+    // Intervalo ahora cada 60 segundos (1 minuto)
+    interval(60000)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         const current = this.auth.getLockoutState(email);
         if (!current.isLocked) {
           this.isLocked.set(false);
-          this.lockRemainingSeconds.set(0);
+          this.lockRemainingMinutes.set(0);
           this.errorMessage.set(null);
           return;
         }
-        this.lockRemainingSeconds.set(current.remainingSeconds);
+        this.lockRemainingMinutes.set(current.remainingMinutes);
+        // Actualizar el mensaje con los minutos restantes
+        this.errorMessage.set(
+          `Demasiados intentos fallidos. Intenta de nuevo en ${current.remainingMinutes} minuto(s).`
+        );
       });
   }
 }

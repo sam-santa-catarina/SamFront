@@ -1,117 +1,125 @@
-import { Injectable } from '@angular/core';
-import { Observable, delay, of, throwError } from 'rxjs';
+import { Injectable, inject, signal } from '@angular/core';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Observable, catchError, map, tap, throwError } from 'rxjs';
+import { environment } from '../../environments/environment';
+import { LoginResponse, ApiErrorBody } from '../models/auth.model';
 
-export type UserRole = 'admin' | 'supervisor' | 'operador';
-
-export interface LoginResponse {
-  token: string;
-  role: UserRole;
-  displayName: string;
+export interface LoginResult {
+  role: number;
+  requiereCambioContrasena: boolean;
 }
 
-export interface LockoutState {
-  isLocked: boolean;
-  remainingSeconds: number;
+export interface AuthError {
+  code: string;
+  message: string;
+  bloqueadoHasta?: string;
 }
 
-const MAX_ATTEMPTS = 5;
-const LOCKOUT_DURATION_SECONDS = 5 * 60;
-const STORAGE_PREFIX = 'sam_login_attempts_';
-
-@Injectable({
-  providedIn: 'root',
-})
+@Injectable({ providedIn: 'root' })
 export class Auth {
-  login(email: string, password: string): Observable<LoginResponse> {
-    const lockout = this.getLockoutState(email);
-    if (lockout.isLocked) {
-      return throwError(() => ({
-        code: 'ACCOUNT_LOCKED',
-        message: `Cuenta bloqueada temporalmente. Intenta de nuevo en ${Math.ceil(
-          lockout.remainingSeconds / 60
-        )} minuto(s).`,
-      })).pipe(delay(300));
+  private readonly http = inject(HttpClient);
+  private readonly baseUrl = `${environment.apiUrl}/api/auth`;
+
+  readonly accessToken = signal<string | null>(null);
+  readonly currentUser = signal<LoginResponse['user'] | null>(null);
+
+  private readonly lockouts = new Map<string, string>();
+
+  login(correo: string, contrasena: string): Observable<LoginResult> {
+    return this.http
+      .post<LoginResponse>(`${this.baseUrl}/login`, { correo, contrasena }, { withCredentials: true })
+      .pipe(
+        tap((res) => {
+          this.accessToken.set(res.tokens.access_token);
+          this.currentUser.set(res.user);
+          this.lockouts.delete(correo);
+        }),
+        map((res) => ({
+          role: res.user.id_rol_usuario,
+          requiereCambioContrasena: res.requiere_cambio_contrasena
+        })),
+        catchError((err: HttpErrorResponse) => {
+          const body = err.error as ApiErrorBody;
+          if (err.status === 423 && body.bloqueado_hasta) {
+            this.lockouts.set(correo, body.bloqueado_hasta);
+          }
+          return throwError(() => this.toAuthError(err, body));
+        })
+      );
+  }
+
+  refreshToken(): Observable<{ access_token: string; expires_in: string }> {
+    return this.http
+      .post<{ message: string; tokens: { access_token: string; expires_in: string } }>(
+        `${this.baseUrl}/refresh-token`,
+        {},
+        { withCredentials: true }
+      )
+      .pipe(
+        tap((res) => this.accessToken.set(res.tokens.access_token)),
+        catchError((err: HttpErrorResponse) =>
+          throwError(() => this.toAuthError(err, err.error as ApiErrorBody))
+        ),
+      ) as unknown as Observable<{ access_token: string; expires_in: string }>;
+  }
+
+  changePassword(contrasena_actual: string, contrasena_nueva: string): Observable<{ message: string }> {
+    return this.http
+      .post<{ message: string }>(
+        `${this.baseUrl}/change-password`,
+        { contrasena_actual, contrasena_nueva }
+      )
+      .pipe(
+        catchError((err: HttpErrorResponse) =>
+          throwError(() => this.toAuthError(err, err.error as ApiErrorBody))
+        )
+      );
+  }
+
+  logout(): void {
+    this.accessToken.set(null);
+    this.currentUser.set(null);
+  }
+
+  getLockoutState(correo: string): { isLocked: boolean; remainingMinutes: number } {
+    const bloqueadoHasta = this.lockouts.get(correo);
+    if (!bloqueadoHasta) {
+      return { isLocked: false, remainingMinutes: 0 };
     }
 
-    return this.mockAuthenticate(email, password).pipe(delay(900));
-  }
-
-  private mockAuthenticate(email: string, password: string): Observable<LoginResponse> {
-    const isValid = email === 'admin@santacatarina.gob.mx' && password === 'Demo#2024!';
-
-    if (!isValid) {
-      this.registerFailedAttempt(email);
-      return throwError(() => ({
-        code: 'INVALID_CREDENTIALS',
-        message: 'Usuario o contraseña incorrectos.',
-      }));
-    }
-
-    this.clearAttempts(email);
-    return of({
-      token: 'mock-jwt-token',
-      role: 'admin',
-      displayName: 'Administrador',
-    });
-  }
-
-  getLockoutState(email: string): LockoutState {
-  const record = this.readRecord(email);
-  if (!record?.lockedUntil) {
-    return { isLocked: false, remainingSeconds: 0 };
-  }
-
-    const remainingMs = record.lockedUntil - Date.now();
+    const remainingMs = new Date(bloqueadoHasta).getTime() - Date.now();
     if (remainingMs <= 0) {
-      this.clearAttempts(email);
-      return { isLocked: false, remainingSeconds: 0 };
+      this.lockouts.delete(correo);
+      return { isLocked: false, remainingMinutes: 0 };
     }
 
-    return { isLocked: true, remainingSeconds: Math.ceil(remainingMs / 1000) };
+    // Redondear hacia arriba para mostrar el minuto completo
+    const remainingMinutes = Math.ceil(remainingMs / 60000);
+    return { isLocked: true, remainingMinutes };
   }
 
-  private registerFailedAttempt(email: string): void {
-    const record = this.readRecord(email) ?? { attempts: 0, lockedUntil: null };
-    record.attempts += 1;
-
-    if (record.attempts >= MAX_ATTEMPTS) {
-      record.lockedUntil = Date.now() + LOCKOUT_DURATION_SECONDS * 1000;
-    }
-
-    this.writeRecord(email, record);
-  }
-
-  private clearAttempts(email: string): void {
-    localStorage.removeItem(this.storageKey(email));
-  }
-
-  private readRecord(email: string): { attempts: number; lockedUntil: number | null } | null {
-    const raw = localStorage.getItem(this.storageKey(email));
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
-  }
-
-  private writeRecord(email: string, record: { attempts: number; lockedUntil: number | null }): void {
-    localStorage.setItem(this.storageKey(email), JSON.stringify(record));
-  }
-
-  private storageKey(email: string): string {
-    return `${STORAGE_PREFIX}${email.trim().toLowerCase()}`;
-  }
-
-  getRedirectRouteForRole(role: UserRole): string {
+  getRedirectRouteForRole(role: number): string {
     switch (role) {
-      case 'admin':
-        return '/panel/administracion';
-      case 'supervisor':
-        return '/panel/supervision';
-      case 'operador':
-      default:
-        return '/panel/inicio';
+      case 1: return '/administrador/inicio'; // Administrador
+      case 2: return '/supervisor/inicio';    // Supervisor
+      case 3: return '/capturista/inicio';    // Capturista
+      default: return '/iniciar-sesion';
     }
+  }
+
+  private toAuthError(err: HttpErrorResponse, body: ApiErrorBody): AuthError {
+    if (err.status === 423) {
+      return { code: 'ACCOUNT_LOCKED', message: body.message ?? 'Cuenta bloqueada', bloqueadoHasta: body.bloqueado_hasta };
+    }
+    if (err.status === 403 && body.message?.includes('eliminada')) {
+      return { code: 'ACCOUNT_DELETED', message: body.message };
+    }
+    if (err.status === 429) {
+      return { code: 'RATE_LIMITED', message: body.message ?? 'Demasiados intentos' };
+    }
+    if (err.status === 401) {
+      return { code: 'INVALID_CREDENTIALS', message: body.message ?? 'Credenciales inválidas' };
+    }
+    return { code: 'UNKNOWN', message: body.message ?? 'Error en el servidor' };
   }
 }

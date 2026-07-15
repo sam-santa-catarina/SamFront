@@ -1,0 +1,21 @@
+export interface LoginResponse {
+  message: string;
+  user: {
+    id: number;
+    nombre_usuario: string;
+    correo_electronico: string;
+    id_rol_usuario: number;
+  };
+  requiere_cambio_contrasena: boolean;
+  tokens: {
+    access_token: string;
+    expires_in: string;
+  };
+}
+
+export interface ApiErrorBody {
+  message?: string;
+  code?: string;
+  bloqueado_hasta?: string;
+  errors?: string[];
+}
