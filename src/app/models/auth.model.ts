@@ -29,3 +29,14 @@ export interface RefreshResponse {
     expires_in: string;
   };
 }
+
+export interface UsuarioListado {
+  id_usuario: number;
+  nombre_usuario: string;
+  correo_electronico: string;
+  id_estatus_usuario: number;
+}
+
+export interface UsuariosResponse {
+  data: UsuarioListado[];
+}
