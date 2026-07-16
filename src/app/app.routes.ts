@@ -12,4 +12,4 @@ export const routes: Routes = [
     { path: 'administrador/inicio', component: HomeAdmin, title: 'Inicio - Administrador', canActivate: [authGuard, forcePasswordChangeGuard] },
     { path: 'capturista/inicio', component: HomeCapturista, title: 'Inicio - Capturista', canActivate: [authGuard, forcePasswordChangeGuard] },
     { path: 'supervisor/inicio', component: HomeSupervisor, title: 'Inicio - Supervisor', canActivate: [authGuard, forcePasswordChangeGuard] },
-];
+];  
