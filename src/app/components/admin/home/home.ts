@@ -3,7 +3,7 @@ import { Auth } from '../../../services/auth';
 import { Router, RouterLink } from '@angular/router';
 
 @Component({
-  selector: 'app-home',
+  selector: 'app-home-admin',
   imports: [RouterLink],
   templateUrl: './home.html',
   styleUrl: './home.css',
