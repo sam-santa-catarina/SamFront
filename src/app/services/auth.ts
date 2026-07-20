@@ -162,7 +162,7 @@ export class Auth {
     switch (role) {
       case 1: return '/administrador/inicio';
       case 2: return '/supervisor/inicio';
-      case 3: return '/capturista/inicio';
+      case 3: return '/dependencia/inicio';
       default: return '/iniciar-sesion';
     }
   }
