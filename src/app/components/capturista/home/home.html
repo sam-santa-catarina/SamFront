@@ -1,1 +1,335 @@
-<p>home works!</p>
+<div class="h-screen w-full flex bg-slate-50 overflow-hidden">
+  <!-- Sidebar -->
+  <aside
+    class="fixed lg:static inset-y-0 left-0 z-30 w-64 flex-shrink-0 bg-blue-900 flex flex-col justify-between transition-transform duration-200 lg:translate-x-0"
+    [class.-translate-x-full]="!sidebarOpen()"
+  >
+    <div>
+      <nav class="mt-8 flex flex-col gap-1 px-3">
+        
+        <a
+          routerLink="/dependencia/inicio"
+          class="flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-blue-100 transition hover:bg-white/10 hover:text-white"
+        >
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 11l9-8 9 8" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 10v10a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V10" />
+          </svg>
+          Inicio
+        </a>
+
+        <a
+          routerLink="/administrador/ver-apoyos"
+          class="flex items-center gap-3 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-blue-900"
+        >
+          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          Ver Apoyos
+        </a>
+
+      </nav>
+    </div>
+
+    <div class="border-t border-white/10 px-3 py-4">
+      <button
+        type="button"
+        (click)="cerrarSesion()"
+        class="flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium text-blue-100 transition hover:bg-white/10 hover:text-white"
+      >
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16 17l5-5-5-5M21 12H9" />
+        </svg>
+        Cerrar sesión
+      </button>
+    </div>
+  </aside>
+
+  <!-- Overlay móvil -->
+  @if (sidebarOpen()) {
+    <div
+      class="fixed inset-0 z-20 bg-slate-900/40 lg:hidden"
+      (click)="toggleSidebar()"
+      (keydown)="toggleSidebar()"
+      role="button"
+      tabindex="0"
+    ></div>
+  }
+
+  <!-- Columna derecha -->
+  <div class="flex flex-1 flex-col min-w-0">
+    <!-- Header más grande -->
+    <header class="flex h-20 items-center justify-between border-b border-slate-200 bg-white px-6">
+      <button
+        type="button"
+        (click)="toggleSidebar()"
+        class="flex items-center justify-center rounded-lg p-2 text-blue-900 hover:bg-slate-100 lg:hidden"
+        aria-label="Abrir menú"
+      >
+        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" />
+        </svg>
+      </button>
+
+      <div class="flex items-center gap-3 px-6 py-6">
+        <img
+          src="/assets/img/logo-santa-catarina.png"
+          alt="Santa Catarina"
+          class="h-16 w-auto"
+        />
+      </div>
+
+      <span class="hidden text-base font-semibold text-blue-900 lg:block">
+        Sistema de Apoyos Municipales - Santa Catarina.
+      </span>
+
+      <div class="relative ml-auto">
+        <button
+          type="button"
+          (click)="toggleUserMenu()"
+          class="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-blue-900 transition hover:bg-slate-100"
+        >
+          <span class="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-blue-900">
+            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 20c0-3.31 3.58-6 8-6s8 2.69 8 6" />
+            </svg>
+          </span>
+
+          <span class="text-base">{{ currentUser()?.nombre_usuario ?? 'Dependencia' }}</span>
+
+          <svg
+            class="h-5 w-5 text-slate-400 transition-transform"
+            [class.rotate-180]="userMenuOpen()"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+
+        @if (userMenuOpen()) {
+          <div
+            class="absolute right-0 top-full mt-2 w-44 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60"
+          >
+            <button
+              type="button"
+              (click)="cerrarSesion()"
+              class="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50"
+            >
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 17l5-5-5-5M21 12H9" />
+              </svg>
+              Cerrar sesión
+            </button>
+          </div>
+        }
+      </div>
+    </header>
+
+    <!-- Contenido -->
+    <main class="flex-1 overflow-y-auto px-6 py-8">
+      <h1 class="text-2xl font-bold text-blue-900">Ver Apoyos</h1>
+      <p class="mt-1 text-sm text-slate-500">
+        Visualiza y filtra los apoyos otorgados y pendientes por CURP
+      </p>
+
+      <!-- Pestañas -->
+      <div class="mt-6 inline-flex rounded-full bg-slate-100 p-1">
+        <button
+          type="button"
+          (click)="cambiarTab('otorgados')"
+          class="rounded-full px-4 py-2 text-sm font-semibold transition"
+          [class.bg-white]="tabActivo() === 'otorgados'"
+          [class.text-blue-900]="tabActivo() === 'otorgados'"
+          [class.shadow-sm]="tabActivo() === 'otorgados'"
+          [class.text-slate-500]="tabActivo() !== 'otorgados'"
+        >
+          Apoyos otorgados
+        </button>
+        <button
+          type="button"
+          (click)="cambiarTab('pendientes')"
+          class="rounded-full px-4 py-2 text-sm font-semibold transition"
+          [class.bg-white]="tabActivo() === 'pendientes'"
+          [class.text-blue-900]="tabActivo() === 'pendientes'"
+          [class.shadow-sm]="tabActivo() === 'pendientes'"
+          [class.text-slate-500]="tabActivo() !== 'pendientes'"
+        >
+          Apoyos pendientes
+        </button>
+      </div>
+
+      <!-- Panel para Apoyos Otorgados -->
+      @if (tabActivo() === 'otorgados') {
+        <div class="mt-4 w-full">
+          <div class="rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60 overflow-hidden">
+            <div class="bg-blue-900 px-7 py-5">
+              <h2 class="text-lg font-bold text-white">Apoyos Otorgados</h2>
+              <p class="mt-1 text-sm text-blue-100">Información detallada de los apoyos otorgados</p>
+            </div>
+
+            <!-- Barra de búsqueda y botón de descarga -->
+            <div class="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/60 px-7 py-5 sm:flex-row sm:items-center sm:justify-between">
+              <div class="relative flex-1 max-w-xl">
+                <label for="busqueda-curp-otorgados" class="sr-only">Buscar por CURP</label>
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+                <input
+                  id="busqueda-curp-otorgados"
+                  type="text"
+                  [(ngModel)]="filtroCurp"
+                  (ngModelChange)="filtrarPorCurp()"
+                  placeholder="Buscar por CURP..."
+                  class="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-3 text-sm text-slate-700 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              
+              <button
+                type="button"
+                (click)="descargarPlantilla('otorgados')"
+                class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-blue-900 transition hover:bg-slate-50"
+              >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-3.5-3.5M12 15l3.5-3.5" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+                </svg>
+                Descargar plantilla
+              </button>
+            </div>
+
+            @if (apoyosOtorgados().length === 0) {
+              <div class="flex flex-col items-center justify-center gap-2 px-7 py-14 text-center">
+                <svg class="h-10 w-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <p class="text-sm text-slate-400">
+                  No se encontraron apoyos otorgados
+                </p>
+              </div>
+            } @else {
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm table-auto">
+                  <thead>
+                    <tr class="border-b border-slate-200 bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <th class="px-6 py-4 whitespace-nowrap">NOMBRE COMPLETO</th>
+                      <th class="px-6 py-4 whitespace-nowrap">CURP</th>
+                      <th class="px-6 py-4 whitespace-nowrap">LOCALIDAD</th>
+                      <th class="px-6 py-4 whitespace-nowrap">CALLE</th>
+                      <th class="px-6 py-4 whitespace-nowrap">NÚMERO EXTERIOR</th>
+                      <th class="px-6 py-4 whitespace-nowrap">CANTIDAD</th>
+                      <th class="px-6 py-4 whitespace-nowrap">CONCEPTO DE APOYO</th>
+                      <th class="px-6 py-4 whitespace-nowrap">PROGRAMA</th>
+                      <th class="px-6 py-4 whitespace-nowrap">MONTO</th>
+                      <th class="px-6 py-4 whitespace-nowrap">FECHA DE APOYO</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (apoyo of apoyosOtorgados(); track apoyo.curp) {
+                      <tr class="border-b border-slate-100 hover:bg-slate-50/60">
+                        <td class="px-6 py-4 text-slate-800 whitespace-nowrap">{{ apoyo.nombreCompleto }}</td>
+                        <td class="px-6 py-4 font-medium text-slate-700 whitespace-nowrap">{{ apoyo.curp }}</td>
+                        <td class="px-6 py-4 text-slate-600 whitespace-nowrap">{{ apoyo.localidad }}</td>
+                        <td class="px-6 py-4 text-slate-600 whitespace-nowrap">{{ apoyo.calle }}</td>
+                        <td class="px-6 py-4 text-slate-600 whitespace-nowrap">{{ apoyo.numeroExterior }}</td>
+                        <td class="px-6 py-4 text-slate-600 whitespace-nowrap">{{ apoyo.cantidad }}</td>
+                        <td class="px-6 py-4 text-slate-600 whitespace-nowrap">{{ apoyo.conceptoApoyo }}</td>
+                        <td class="px-6 py-4 text-slate-600 whitespace-nowrap">{{ apoyo.programa }}</td>
+                        <td class="px-6 py-4 text-slate-600 whitespace-nowrap">{{ formatearMonto(apoyo.monto) }}</td>
+                        <td class="px-6 py-4 text-slate-600 whitespace-nowrap">{{ formatearFecha(apoyo.fechaApoyo) }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Panel para Apoyos pendientes -->
+      @if (tabActivo() === 'pendientes') {
+        <div class="mt-4 w-full">
+          <div class="rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60 overflow-hidden">
+            <div class="bg-blue-900 px-7 py-5">
+              <h2 class="text-lg font-bold text-white">Apoyos pendientes</h2>
+              <p class="mt-1 text-sm text-blue-100">Información resumida de los apoyos pendientes</p>
+            </div>
+
+            <!-- Barra de búsqueda y botón de descarga -->
+            <div class="flex flex-col gap-3 border-b border-slate-200 bg-slate-50/60 px-7 py-5 sm:flex-row sm:items-center sm:justify-between">
+              <div class="relative flex-1 max-w-xl">
+                <label for="busqueda-curp-pendientes" class="sr-only">Buscar por CURP</label>
+                <svg class="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+                <input
+                  id="busqueda-curp-pendientes"
+                  type="text"
+                  [(ngModel)]="filtroCurp"
+                  (ngModelChange)="filtrarPorCurp()"
+                  placeholder="Buscar por CURP..."
+                  class="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-3 text-sm text-slate-700 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+              
+              <button
+                type="button"
+                (click)="descargarPlantilla('pendientes')"
+                class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-blue-900 transition hover:bg-slate-50"
+              >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v12m0 0l-3.5-3.5M12 15l3.5-3.5" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+                </svg>
+                Descargar plantilla
+              </button>
+            </div>
+
+            @if (apoyosPendientes().length === 0) {
+              <div class="flex flex-col items-center justify-center gap-2 px-7 py-14 text-center">
+                <svg class="h-10 w-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <p class="text-sm text-slate-400">
+                  No se encontraron apoyos pendientes
+                </p>
+              </div>
+            } @else {
+              <div class="overflow-x-auto">
+                <table class="w-full text-sm table-auto">
+                  <thead>
+                    <tr class="border-b border-slate-200 bg-slate-50/60 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <th class="px-6 py-4 whitespace-nowrap">NOMBRE COMPLETO</th>
+                      <th class="px-6 py-4 whitespace-nowrap">CURP</th>
+                      <th class="px-6 py-4 whitespace-nowrap">CONCEPTO DE APOYO</th>
+                      <th class="px-6 py-4 whitespace-nowrap">PROGRAMA</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    @for (apoyo of apoyosPendientes(); track apoyo.curp) {
+                      <tr class="border-b border-slate-100 hover:bg-slate-50/60">
+                        <td class="px-6 py-4 text-slate-800 whitespace-nowrap">{{ apoyo.nombreCompleto }}</td>
+                        <td class="px-6 py-4 font-medium text-slate-700 whitespace-nowrap">{{ apoyo.curp }}</td>
+                        <td class="px-6 py-4 text-slate-600 whitespace-nowrap">{{ apoyo.conceptoApoyo }}</td>
+                        <td class="px-6 py-4 text-slate-600 whitespace-nowrap">{{ apoyo.programa }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            }
+          </div>
+        </div>
+      }
+    </main>
+  </div>
+</div>

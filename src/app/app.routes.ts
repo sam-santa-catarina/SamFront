@@ -1,7 +1,7 @@
 import { Routes } from '@angular/router';
 import { Login } from './components/auth/login/login';
 import { HomeAdmin } from './components/admin/home/home';
-import { HomeCapturista } from './components/capturista/home/home';
+import { HomeDependencia } from './components/capturista/home/home';
 import { HomeSupervisor } from './components/supervisor/home/home';
 import { authGuard } from './guards/auth.guard';
 import { forcePasswordChangeGuard } from './guards/force-password-change.guard';
@@ -29,12 +29,12 @@ export const routes: Routes = [
   },
 
   {
-    path: 'capturista',
+    path: 'dependencia',
     canActivate: [authGuard, forcePasswordChangeGuard],
     canActivateChild: [authGuard, forcePasswordChangeGuard, roleGuard],
     data: { roles: [ID_ROL_CAPTURISTA] },
     children: [
-      { path: 'inicio', component: HomeCapturista, title: 'Inicio - Capturista' },
+      { path: 'inicio', component: HomeDependencia, title: 'Inicio - Dependencia' },
     ],
   },
 
