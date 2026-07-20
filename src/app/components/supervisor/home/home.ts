@@ -1,7 +1,12 @@
-import { ChangeDetectionStrategy, Component, inject, signal, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, OnInit, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Auth } from '../../../services/auth';
 import { Router, RouterLink } from '@angular/router';
+import { ApoyosService, ApoyoOtorgadoResponse, ApoyoPendienteResponse } from '../../../services/apoyo';
+import { DependenciasService, Dependencia } from '../../../services/dependencias';
+
+const LIMITE = 30;
 
 type TipoCarga = 'otorgados' | 'pendientes';
 
@@ -37,6 +42,9 @@ interface ApoyoPendiente {
 export class HomeSupervisor implements OnInit {
   private readonly auth = inject(Auth);
   private readonly router = inject(Router);
+  private readonly apoyosService = inject(ApoyosService);
+  private readonly dependenciasService = inject(DependenciasService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly currentUser = this.auth.currentUser;
   readonly userMenuOpen = signal(false);
@@ -46,331 +54,152 @@ export class HomeSupervisor implements OnInit {
   readonly filtroCurp = signal('');
   readonly filtroDependencia = signal('');
 
-  // Datos completos sin filtrar
-  private todosApoyosOtorgados: ApoyoOtorgado[] = [];
-  private todosApoyosPendientes: ApoyoPendiente[] = [];
+  // Estado de carga
+  readonly loading = signal(false);
+  readonly loadingMore = signal(false);
+  readonly errorMessage = signal<string | null>(null);
 
-  // Datos filtrados que se muestran en la tabla
+  // Totales
+  readonly totalOtorgados = signal(0);
+  readonly totalPendientes = signal(0);
+  readonly hasMoreOtorgados = signal(false);
+  readonly hasMorePendientes = signal(false);
+
+  // Lista de dependencias desde el backend
+  readonly dependencias = signal<Dependencia[]>([]);
+
+  // Datos que se muestran en la tabla
   readonly apoyosOtorgados = signal<ApoyoOtorgado[]>([]);
   readonly apoyosPendientes = signal<ApoyoPendiente[]>([]);
 
+  private offsetOtorgados = 0;
+  private offsetPendientes = 0;
+
   ngOnInit(): void {
-    this.cargarDatos();
+    this.cargarDependencias();
+    this.cargarInicial();
   }
 
-  private cargarDatos(): void {
-    // TODO: Reemplazar con llamadas reales al backend
-    // Datos de ejemplo para apoyos otorgados
-    this.todosApoyosOtorgados = [
-      // Desarrollo Económico
-      {
-        nombreCompleto: 'María Guadalupe Torres López',
-        curp: 'TOLM900101MDFRPR05',
-        dependencia: 'Desarrollo Economico',
-        localidad: 'Santa Catarina',
-        calle: 'Hidalgo',
-        numeroExterior: '123',
-        cantidad: 1,
-        conceptoApoyo: 'Equipo de cómputo',
-        programa: 'Impulso Empresarial',
-        monto: 25000,
-        fechaApoyo: '2024-01-15'
+  private cargarDependencias(): void {
+    this.dependenciasService.listarDependencias().subscribe({
+      next: (deps) => {
+        this.dependencias.set(deps);
       },
-      {
-        nombreCompleto: 'José Antonio Ramírez Cruz',
-        curp: 'RACJ850612HDFMRS02',
-        dependencia: 'Desarrollo Economico',
-        localidad: 'Santa Catarina',
-        calle: 'Morelos',
-        numeroExterior: '456',
-        cantidad: 1,
-        conceptoApoyo: 'Mobiliario para negocio',
-        programa: 'Impulso Empresarial',
-        monto: 18000,
-        fechaApoyo: '2024-01-20'
-      },
-      {
-        nombreCompleto: 'Ana Karen Hernández Pérez',
-        curp: 'HEPA930309MDFRRN08',
-        dependencia: 'Desarrollo Economico',
-        localidad: 'Santa Catarina',
-        calle: 'Juárez',
-        numeroExterior: '789',
-        cantidad: 1,
-        conceptoApoyo: 'Capacitación empresarial',
-        programa: 'Capacitación para el Trabajo',
-        monto: 5000,
-        fechaApoyo: '2024-02-05'
-      },
-      {
-        nombreCompleto: 'Carlos Mendoza García',
-        curp: 'MEGC880215HDFNRR09',
-        dependencia: 'Desarrollo Economico',
-        localidad: 'Santa Catarina',
-        calle: 'Zaragoza',
-        numeroExterior: '321',
-        cantidad: 1,
-        conceptoApoyo: 'Insumos para panadería',
-        programa: 'Impulso Empresarial',
-        monto: 12000,
-        fechaApoyo: '2024-02-18'
-      },
-      // Desarrollo Rural
-      {
-        nombreCompleto: 'Rosa Elena Sánchez Martínez',
-        curp: 'SAMR950512MDFNRS03',
-        dependencia: 'Desarrollo Rural',
-        localidad: 'Santa Catarina',
-        calle: 'Reforma',
-        numeroExterior: '567',
-        cantidad: 5,
-        conceptoApoyo: 'Borregas',
-        programa: 'Fomento Ganadero',
-        monto: 15000,
-        fechaApoyo: '2024-03-15'
-      },
-      {
-        nombreCompleto: 'Juan Carlos Hernández Díaz',
-        curp: 'HEDJ820715HDFRRN04',
-        dependencia: 'Desarrollo Rural',
-        localidad: 'Santa Catarina',
-        calle: 'Independencia',
-        numeroExterior: '890',
-        cantidad: 2,
-        conceptoApoyo: 'Tinacos para ganado',
-        programa: 'Infraestructura Rural',
-        monto: 12000,
-        fechaApoyo: '2024-03-20'
-      },
-      {
-        nombreCompleto: 'Patricia López García',
-        curp: 'LOGP880321MDFRRT06',
-        dependencia: 'Desarrollo Rural',
-        localidad: 'Santa Catarina',
-        calle: 'Guerrero',
-        numeroExterior: '234',
-        cantidad: 10,
-        conceptoApoyo: 'Semillas de maíz',
-        programa: 'Apoyo Agrícola',
-        monto: 8000,
-        fechaApoyo: '2024-04-01'
-      },
-      {
-        nombreCompleto: 'Miguel Ángel Torres Ruiz',
-        curp: 'TORR910828HDFRZG08',
-        dependencia: 'Desarrollo Rural',
-        localidad: 'Santa Catarina',
-        calle: 'Madero',
-        numeroExterior: '654',
-        cantidad: 1,
-        conceptoApoyo: 'Sistema de riego',
-        programa: 'Infraestructura Rural',
-        monto: 35000,
-        fechaApoyo: '2024-04-10'
-      },
-      // Desarrollo Social
-      {
-        nombreCompleto: 'Laura Patricia Vázquez Luna',
-        curp: 'VALL891106MDFZNR01',
-        dependencia: 'Desarrollo Social',
-        localidad: 'Santa Catarina',
-        calle: 'Allende',
-        numeroExterior: '432',
-        cantidad: 1,
-        conceptoApoyo: 'Calentador solar',
-        programa: 'Vivienda Digna',
-        monto: 8500,
-        fechaApoyo: '2024-02-28'
-      },
-      {
-        nombreCompleto: 'Francisco Javier Medina Soto',
-        curp: 'MESF830425HDFNTR02',
-        dependencia: 'Desarrollo Social',
-        localidad: 'Santa Catarina',
-        calle: 'Matamoros',
-        numeroExterior: '765',
-        cantidad: 1,
-        conceptoApoyo: 'Láminas para techo',
-        programa: 'Vivienda Digna',
-        monto: 10000,
-        fechaApoyo: '2024-03-05'
-      },
-      {
-        nombreCompleto: 'Gabriela Hernández Morales',
-        curp: 'HEMG940718MDFRRB03',
-        dependencia: 'Desarrollo Social',
-        localidad: 'Santa Catarina',
-        calle: 'Victoria',
-        numeroExterior: '198',
-        cantidad: 1,
-        conceptoApoyo: 'Piso firme',
-        programa: 'Vivienda Digna',
-        monto: 15000,
-        fechaApoyo: '2024-03-18'
-      },
-      {
-        nombreCompleto: 'Roberto Carlos Díaz Flores',
-        curp: 'DIFR861202HDFZLR05',
-        dependencia: 'Desarrollo Social',
-        localidad: 'Santa Catarina',
-        calle: 'Álvaro Obregón',
-        numeroExterior: '543',
-        cantidad: 3,
-        conceptoApoyo: 'Despensa mensual',
-        programa: 'Seguridad Alimentaria',
-        monto: 4500,
-        fechaApoyo: '2024-04-22'
-      },
-      // Despacho
-      {
-        nombreCompleto: 'Fernando Alberto Ruiz Gómez',
-        curp: 'RUGF921114HDFZMR06',
-        dependencia: 'Despacho',
-        localidad: 'Santa Catarina',
-        calle: 'Benito Juárez',
-        numeroExterior: '876',
-        cantidad: 1,
-        conceptoApoyo: 'Gestión de escrituras',
-        programa: 'Regularización de Predios',
-        monto: 3000,
-        fechaApoyo: '2024-05-10'
-      },
-      {
-        nombreCompleto: 'Adriana Morales Castillo',
-        curp: 'MOCA900306MDFRSD07',
-        dependencia: 'Despacho',
-        localidad: 'Santa Catarina',
-        calle: '5 de Mayo',
-        numeroExterior: '321',
-        cantidad: 1,
-        conceptoApoyo: 'Asesoría jurídica',
-        programa: 'Asistencia Legal',
-        monto: 2000,
-        fechaApoyo: '2024-05-15'
-      },
-      {
-        nombreCompleto: 'Eduardo Sánchez Pérez',
-        curp: 'SAPE850810HDFNRL08',
-        dependencia: 'Despacho',
-        localidad: 'Santa Catarina',
-        calle: 'Nicolás Bravo',
-        numeroExterior: '654',
-        cantidad: 1,
-        conceptoApoyo: 'Trámite de testamento',
-        programa: 'Asistencia Legal',
-        monto: 1500,
-        fechaApoyo: '2024-06-01'
-      },
-      {
-        nombreCompleto: 'Martha Patricia Luna Vega',
-        curp: 'LUVM870525MDFNGR09',
-        dependencia: 'Despacho',
-        localidad: 'Santa Catarina',
-        calle: 'Melchor Ocampo',
-        numeroExterior: '987',
-        cantidad: 1,
-        conceptoApoyo: 'Mediación comunitaria',
-        programa: 'Asistencia Legal',
-        monto: 1000,
-        fechaApoyo: '2024-06-10'
+      error: (error) => {
+        console.error('Error al cargar dependencias:', error);
       }
-    ];
+    });
+  }
 
-    // Datos de ejemplo para apoyos pendientes
-    this.todosApoyosPendientes = [
-      // Desarrollo Económico
-      {
-        nombreCompleto: 'Alejandro Flores Miranda',
-        curp: 'FOMA950210HDFLRR10',
-        dependencia: 'Desarrollo Economico',
-        conceptoApoyo: 'Equipo de soldadura',
-        programa: 'Impulso Empresarial'
-      },
-      {
-        nombreCompleto: 'Diana Laura Castillo Romero',
-        curp: 'CARD920815MDFSMN11',
-        dependencia: 'Desarrollo Economico',
-        conceptoApoyo: 'Máquina de coser industrial',
-        programa: 'Impulso Empresarial'
-      },
-      {
-        nombreCompleto: 'Ricardo Gómez Hernández',
-        curp: 'GOHR880712HDFMRC12',
-        dependencia: 'Desarrollo Economico',
-        conceptoApoyo: 'Horno para pizzas',
-        programa: 'Impulso Empresarial'
-      },
-      // Desarrollo Rural
-      {
-        nombreCompleto: 'María Elena Vázquez Torres',
-        curp: 'VATM910304MDFZRR13',
-        dependencia: 'Desarrollo Rural',
-        conceptoApoyo: 'Semillas mejoradas de frijol',
-        programa: 'Apoyo Agrícola'
-      },
-      {
-        nombreCompleto: 'José Luis Hernández Ruiz',
-        curp: 'HERL870506HDFZNS14',
-        dependencia: 'Desarrollo Rural',
-        conceptoApoyo: 'Pollos de engorda',
-        programa: 'Fomento Avícola'
-      },
-      {
-        nombreCompleto: 'Teresa de Jesús Morales Luna',
-        curp: 'MOLT890815MDFRNS15',
-        dependencia: 'Desarrollo Rural',
-        conceptoApoyo: 'Fertilizante orgánico',
-        programa: 'Apoyo Agrícola'
-      },
-      // Desarrollo Social
-      {
-        nombreCompleto: 'Gerardo Sánchez Mendoza',
-        curp: 'SAMG850520HDFNNR16',
-        dependencia: 'Desarrollo Social',
-        conceptoApoyo: 'Cuarto adicional',
-        programa: 'Vivienda Digna'
-      },
-      {
-        nombreCompleto: 'Lucía Fernández García',
-        curp: 'FEGL910114MDFRRC17',
-        dependencia: 'Desarrollo Social',
-        conceptoApoyo: 'Despensa básica',
-        programa: 'Seguridad Alimentaria'
-      },
-      {
-        nombreCompleto: 'Armando Díaz Rodríguez',
-        curp: 'DIRA900828HDFZRM18',
-        dependencia: 'Desarrollo Social',
-        conceptoApoyo: 'Calentador solar',
-        programa: 'Vivienda Digna'
-      },
-      // Despacho
-      {
-        nombreCompleto: 'Claudia Patricia Ramírez Soto',
-        curp: 'RASC921003MDFMTL19',
-        dependencia: 'Despacho',
-        conceptoApoyo: 'Elaboración de testamento',
-        programa: 'Asistencia Legal'
-      },
-      {
-        nombreCompleto: 'Héctor Manuel Díaz Torres',
-        curp: 'DITH861205HDFZRR20',
-        dependencia: 'Despacho',
-        conceptoApoyo: 'Regularización de escrituras',
-        programa: 'Regularización de Predios'
-      },
-      {
-        nombreCompleto: 'Sofía Arellano Martínez',
-        curp: 'AEMS930215MDFRTF21',
-        dependencia: 'Despacho',
-        conceptoApoyo: 'Asesoría legal familiar',
-        programa: 'Asistencia Legal'
-      }
-    ];
+  private cargarInicial(): void {
+    this.offsetOtorgados = 0;
+    this.offsetPendientes = 0;
+    this.cargarOtorgados(true);
+    this.cargarPendientes(true);
+  }
 
-    // Inicializar las listas filtradas con todos los datos
-    this.apoyosOtorgados.set([...this.todosApoyosOtorgados]);
-    this.apoyosPendientes.set([...this.todosApoyosPendientes]);
+  private cargarOtorgados(reset: boolean = false): void {
+    if (reset) {
+      this.loading.set(true);
+      this.offsetOtorgados = 0;
+    } else {
+      this.loadingMore.set(true);
+    }
+
+    this.errorMessage.set(null);
+
+    const params: any = { limit: LIMITE, offset: reset ? 0 : this.offsetOtorgados };
+    const curpBuscado = this.filtroCurp().trim().toUpperCase();
+    if (curpBuscado && curpBuscado.length >= 4) {
+      params.curp = curpBuscado;
+    }
+
+    this.apoyosService.listarApoyos(params)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          const nuevos = response.data.map((apoyo: ApoyoOtorgadoResponse) => ({
+            nombreCompleto: apoyo.nombre_completo,
+            curp: apoyo.curp_beneficiario,
+            dependencia: apoyo.dependencia,
+            localidad: apoyo.nombre_localidad,
+            calle: apoyo.calle,
+            numeroExterior: apoyo.numero_exterior,
+            cantidad: apoyo.cantidad,
+            conceptoApoyo: apoyo.nombre_concepto,
+            programa: apoyo.programa,
+            monto: apoyo.monto,
+            fechaApoyo: apoyo.fecha_apoyo
+          }));
+
+          if (reset) {
+            this.apoyosOtorgados.set(nuevos);
+          } else {
+            this.apoyosOtorgados.update(actuales => [...actuales, ...nuevos]);
+          }
+
+          this.totalOtorgados.set(response.total);
+          this.hasMoreOtorgados.set(response.hasMore);
+          this.offsetOtorgados += nuevos.length;
+          this.loading.set(false);
+          this.loadingMore.set(false);
+        },
+        error: (error) => {
+          console.error('Error al cargar apoyos otorgados:', error);
+          this.loading.set(false);
+          this.loadingMore.set(false);
+          this.errorMessage.set('No se pudieron cargar los apoyos otorgados. Intenta de nuevo.');
+        }
+      });
+  }
+
+  private cargarPendientes(reset: boolean = false): void {
+    if (reset) {
+      this.loading.set(true);
+      this.offsetPendientes = 0;
+    } else {
+      this.loadingMore.set(true);
+    }
+
+    this.errorMessage.set(null);
+
+    const params: any = { limit: LIMITE, offset: reset ? 0 : this.offsetPendientes };
+    const curpBuscado = this.filtroCurp().trim().toUpperCase();
+    if (curpBuscado && curpBuscado.length >= 4) {
+      params.curp = curpBuscado;
+    }
+
+    this.apoyosService.listarApoyosPendientes(params)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          const nuevos = response.data.map((apoyo: ApoyoPendienteResponse) => ({
+            nombreCompleto: apoyo.nombre_completo,
+            curp: apoyo.curp_beneficiario,
+            dependencia: apoyo.dependencia,
+            conceptoApoyo: apoyo.nombre_concepto,
+            programa: apoyo.programa
+          }));
+
+          if (reset) {
+            this.apoyosPendientes.set(nuevos);
+          } else {
+            this.apoyosPendientes.update(actuales => [...actuales, ...nuevos]);
+          }
+
+          this.totalPendientes.set(response.total);
+          this.hasMorePendientes.set(response.hasMore);
+          this.offsetPendientes += nuevos.length;
+          this.loading.set(false);
+          this.loadingMore.set(false);
+        },
+        error: (error) => {
+          console.error('Error al cargar apoyos pendientes:', error);
+          this.loading.set(false);
+          this.loadingMore.set(false);
+          this.errorMessage.set('No se pudieron cargar los apoyos pendientes. Intenta de nuevo.');
+        }
+      });
   }
 
   toggleUserMenu(): void {
@@ -393,64 +222,73 @@ export class HomeSupervisor implements OnInit {
 
   cambiarTab(tab: TipoCarga): void {
     this.tabActivo.set(tab);
-    // Aplicar los filtros actuales al cambiar de pestaña
-    this.aplicarFiltros();
+    // Al cambiar de pestaña, aplicar filtro de dependencia localmente
+    this.aplicarFiltroDependencia();
   }
 
   filtrarPorCurp(): void {
-    this.aplicarFiltros();
+    // Reiniciar y recargar con filtro de CURP desde el backend
+    this.cargarInicial();
   }
 
   filtrarPorDependencia(): void {
-    this.aplicarFiltros();
+    // Aplicar filtro de dependencia localmente (sin recargar del backend)
+    this.aplicarFiltroDependencia();
   }
 
-  private aplicarFiltros(): void {
-    const curpBuscado = this.filtroCurp().trim().toUpperCase();
+  private aplicarFiltroDependencia(): void {
     const dependenciaBuscada = this.filtroDependencia().trim();
     
-    // Filtrar apoyos otorgados
-    let otorgadosFiltrados = [...this.todosApoyosOtorgados];
-    
-    if (curpBuscado) {
-      otorgadosFiltrados = otorgadosFiltrados.filter(apoyo => 
-        apoyo.curp.includes(curpBuscado)
-      );
-    }
-    
-    if (dependenciaBuscada) {
-      otorgadosFiltrados = otorgadosFiltrados.filter(apoyo => 
+    if (this.tabActivo() === 'otorgados') {
+      if (!dependenciaBuscada) {
+        // Si no hay filtro, recargar todos los datos
+        this.cargarOtorgados(true);
+        return;
+      }
+      
+      // Filtrar localmente de los datos ya cargados
+      const filtrados = this.apoyosOtorgados().filter(apoyo => 
         apoyo.dependencia === dependenciaBuscada
       );
-    }
-    
-    // Filtrar apoyos pendientes
-    let pendientesFiltrados = [...this.todosApoyosPendientes];
-    
-    if (curpBuscado) {
-      pendientesFiltrados = pendientesFiltrados.filter(apoyo => 
-        apoyo.curp.includes(curpBuscado)
-      );
-    }
-    
-    if (dependenciaBuscada) {
-      pendientesFiltrados = pendientesFiltrados.filter(apoyo => 
+      this.apoyosOtorgados.set(filtrados);
+    } else {
+      if (!dependenciaBuscada) {
+        this.cargarPendientes(true);
+        return;
+      }
+      
+      const filtrados = this.apoyosPendientes().filter(apoyo => 
         apoyo.dependencia === dependenciaBuscada
       );
+      this.apoyosPendientes.set(filtrados);
     }
-
-    this.apoyosOtorgados.set(otorgadosFiltrados);
-    this.apoyosPendientes.set(pendientesFiltrados);
   }
 
-  // Método para recargar datos desde el backend
-  recargarDatos(): void {
-    // TODO: Implementar llamada al servicio del backend
-    this.cargarDatos();
-    this.aplicarFiltros();
+  cargarMas(): void {
+    if (this.loadingMore()) return;
+
+    if (this.tabActivo() === 'otorgados') {
+      if (!this.hasMoreOtorgados()) return;
+      this.cargarOtorgados(false);
+    } else {
+      if (!this.hasMorePendientes()) return;
+      this.cargarPendientes(false);
+    }
   }
 
-  // Método helper para formatear montos
+  // Métodos helper para el template
+  totalActual(): number {
+    return this.tabActivo() === 'otorgados' ? this.totalOtorgados() : this.totalPendientes();
+  }
+
+  registrosActualesLength(): number {
+    return this.tabActivo() === 'otorgados' ? this.apoyosOtorgados().length : this.apoyosPendientes().length;
+  }
+
+  hasMoreActual(): boolean {
+    return this.tabActivo() === 'otorgados' ? this.hasMoreOtorgados() : this.hasMorePendientes();
+  }
+
   formatearMonto(monto: number): string {
     return new Intl.NumberFormat('es-MX', {
       style: 'currency',
@@ -458,8 +296,8 @@ export class HomeSupervisor implements OnInit {
     }).format(monto);
   }
 
-  // Método helper para formatear fechas
   formatearFecha(fecha: string): string {
+    if (!fecha) return '';
     return new Date(fecha).toLocaleDateString('es-MX', {
       year: 'numeric',
       month: '2-digit',
