@@ -1,7 +1,11 @@
-import { ChangeDetectionStrategy, Component, inject, signal, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal, OnInit, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
 import { Auth } from '../../../services/auth';
 import { Router, RouterLink } from '@angular/router';
+import { ApoyosService, ApoyoOtorgadoResponse, ApoyoPendienteResponse } from '../../../services/apoyo';
+
+const LIMITE = 30;
 
 type TipoCarga = 'otorgados' | 'pendientes';
 
@@ -35,6 +39,8 @@ interface ApoyoPendiente {
 export class HomeDependencia implements OnInit {
   private readonly auth = inject(Auth);
   private readonly router = inject(Router);
+  private readonly apoyosService = inject(ApoyosService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly currentUser = this.auth.currentUser;
   readonly userMenuOpen = signal(false);
@@ -43,85 +49,125 @@ export class HomeDependencia implements OnInit {
   readonly tabActivo = signal<TipoCarga>('otorgados');
   readonly filtroCurp = signal('');
 
-  // Datos completos sin filtrar
-  private todosApoyosOtorgados: ApoyoOtorgado[] = [];
-  private todosApoyosPendientes: ApoyoPendiente[] = [];
+  // Estado de carga
+  readonly loading = signal(false);
+  readonly loadingMore = signal(false);
+  readonly errorMessage = signal<string | null>(null);
+  
+  // Totales
+  readonly totalOtorgados = signal(0);
+  readonly totalPendientes = signal(0);
+  readonly hasMoreOtorgados = signal(false);
+  readonly hasMorePendientes = signal(false);
 
-  // Datos filtrados que se muestran en la tabla
+  // Datos que se muestran en la tabla
   readonly apoyosOtorgados = signal<ApoyoOtorgado[]>([]);
   readonly apoyosPendientes = signal<ApoyoPendiente[]>([]);
 
+  private offsetOtorgados = 0;
+  private offsetPendientes = 0;
+
   ngOnInit(): void {
-    this.cargarDatos();
+    this.cargarInicial();
   }
 
-  private cargarDatos(): void {
-    // TODO: Reemplazar con llamadas reales al backend
-    // Ejemplo de datos de prueba para apoyos otorgados
-    this.todosApoyosOtorgados = [
-      {
-        nombreCompleto: 'María Guadalupe',
-        curp: 'TOLM900101MDFRPR05',
-        localidad: 'Santa Catarina',
-        calle: 'Hidalgo',
-        numeroExterior: '123',
-        cantidad: 5,
-        conceptoApoyo: 'Borregas',
-        programa: 'Fomento Ganadero',
-        monto: 15000,
-        fechaApoyo: '2024-03-15'
-      },
-      {
-        nombreCompleto: 'José Antonio',
-        curp: 'RACJ850612HDFMRS02',
-        localidad: 'Santa Catarina',
-        calle: 'Morelos',
-        numeroExterior: '456',
-        cantidad: 1,
-        conceptoApoyo: 'Calentador solar',
-        programa: 'Vivienda Digna',
-        monto: 8500,
-        fechaApoyo: '2024-02-28'
-      },
-      {
-        nombreCompleto: 'Ana Karen',
-        curp: 'HEPA930309MDFRRN08',
-        localidad: 'Santa Catarina',
-        calle: 'Juárez',
-        numeroExterior: '789',
-        cantidad: 2,
-        conceptoApoyo: 'Tinacos para ganado',
-        programa: 'Infraestructura Rural',
-        monto: 12000,
-        fechaApoyo: '2024-04-01'
-      }
-    ];
+  private cargarInicial(): void {
+    this.offsetOtorgados = 0;
+    this.offsetPendientes = 0;
+    this.cargarOtorgados(true);
+    this.cargarPendientes(true);
+  }
 
-    // Ejemplo de datos de prueba para apoyos registrados
-    this.todosApoyosPendientes = [
-      {
-        nombreCompleto: 'Torres',
-        curp: 'TOLM900101MDFRPR05',
-        conceptoApoyo: 'Semillas mejoradas',
-        programa: 'Apoyo Agrícola'
-      },
-      {
-        nombreCompleto: 'Ramírez',
-        curp: 'RACJ850612HDFMRS02',
-        conceptoApoyo: 'Despensa',
-        programa: 'Seguridad Alimentaria'
-      },
-      {
-        nombreCompleto: 'Hernández',
-        curp: 'HEPA930309MDFRRN08',
-        conceptoApoyo: 'Fertilizante',
-        programa: 'Apoyo Agrícola'
-      }
-    ];
+  private cargarOtorgados(reset: boolean = false): void {
+    if (reset) {
+      this.loading.set(true);
+      this.offsetOtorgados = 0;
+    }
 
-    // Inicializar las listas filtradas con todos los datos
-    this.apoyosOtorgados.set([...this.todosApoyosOtorgados]);
-    this.apoyosPendientes.set([...this.todosApoyosPendientes]);
+    this.errorMessage.set(null);
+
+    const params: any = { limit: LIMITE, offset: reset ? 0 : this.offsetOtorgados };
+    const curpBuscado = this.filtroCurp().trim().toUpperCase();
+    if (curpBuscado && curpBuscado.length >= 4) {
+      params.curp = curpBuscado;
+    }
+
+    this.apoyosService.listarApoyos(params)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          const nuevos = response.data.map((apoyo: ApoyoOtorgadoResponse) => ({
+            nombreCompleto: apoyo.nombre_completo,
+            curp: apoyo.curp_beneficiario,
+            localidad: apoyo.nombre_localidad,
+            calle: apoyo.calle,
+            numeroExterior: apoyo.numero_exterior,
+            cantidad: apoyo.cantidad,
+            conceptoApoyo: apoyo.nombre_concepto,
+            programa: apoyo.programa,
+            monto: apoyo.monto,
+            fechaApoyo: apoyo.fecha_apoyo
+          }));
+
+          if (reset) {
+            this.apoyosOtorgados.set(nuevos);
+          } else {
+            this.apoyosOtorgados.update(actuales => [...actuales, ...nuevos]);
+          }
+
+          this.totalOtorgados.set(response.total);
+          this.hasMoreOtorgados.set(response.hasMore);
+          this.offsetOtorgados += nuevos.length;
+          this.loading.set(false);
+        },
+        error: () => {
+          this.loading.set(false);
+          this.errorMessage.set('No se pudieron cargar los apoyos otorgados.');
+        }
+      });
+  }
+
+  private cargarPendientes(reset: boolean = false): void {
+    if (reset) {
+      this.loading.set(true);
+      this.offsetPendientes = 0;
+    }
+
+    this.errorMessage.set(null);
+
+    const params: any = { limit: LIMITE, offset: reset ? 0 : this.offsetPendientes };
+    const curpBuscado = this.filtroCurp().trim().toUpperCase();
+    if (curpBuscado && curpBuscado.length >= 4) {
+      params.curp = curpBuscado;
+    }
+
+    this.apoyosService.listarApoyosPendientes(params)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          const nuevos = response.data.map((apoyo: ApoyoPendienteResponse) => ({
+            nombreCompleto: apoyo.nombre_completo,
+            curp: apoyo.curp_beneficiario,
+            conceptoApoyo: apoyo.nombre_concepto,
+            programa: apoyo.programa
+          }));
+
+          if (reset) {
+            this.apoyosPendientes.set(nuevos);
+          } else {
+            this.apoyosPendientes.update(actuales => [...actuales, ...nuevos]);
+          }
+
+          this.totalPendientes.set(response.total);
+          this.hasMorePendientes.set(response.hasMore);
+          this.offsetPendientes += nuevos.length;
+          this.loading.set(false);
+        },
+        error: () => {
+          this.loading.set(false);
+          this.errorMessage.set('No se pudieron cargar los apoyos pendientes.');
+        }
+      });
   }
 
   toggleUserMenu(): void {
@@ -144,15 +190,12 @@ export class HomeDependencia implements OnInit {
 
   cambiarTab(tab: TipoCarga): void {
     this.tabActivo.set(tab);
-    // Aplicar el filtro actual al cambiar de pestaña
-    this.filtrarPorCurp();
   }
 
   descargarPlantilla(tab: TipoCarga): void {
     const nombreArchivo =
       tab === 'otorgados' ? 'plantilla-apoyos-otorgados.xlsx' : 'plantilla-apoyos-pendientes.xlsx';
 
-    // TODO: reemplazar por la ruta real una vez que la plantilla exista en assets/plantillas
     const link = document.createElement('a');
     link.href = `/assets/plantillas/${nombreArchivo}`;
     link.download = nombreArchivo;
@@ -160,37 +203,37 @@ export class HomeDependencia implements OnInit {
   }
 
   filtrarPorCurp(): void {
-    const curpBuscado = this.filtroCurp().trim().toUpperCase();
-    
-    if (!curpBuscado) {
-      // Si no hay filtro, mostrar todos los datos
-      this.apoyosOtorgados.set([...this.todosApoyosOtorgados]);
-      this.apoyosPendientes.set([...this.todosApoyosPendientes]);
-      return;
+    // Reiniciar y recargar con filtro
+    this.cargarInicial();
+  }
+
+  cargarMas(): void {
+    if (this.tabActivo() === 'otorgados') {
+      if (!this.hasMoreOtorgados() || this.loadingMore()) return;
+      this.loadingMore.set(true);
+      this.cargarOtorgados(false);
+      this.loadingMore.set(false);
+    } else {
+      if (!this.hasMorePendientes() || this.loadingMore()) return;
+      this.loadingMore.set(true);
+      this.cargarPendientes(false);
+      this.loadingMore.set(false);
     }
-
-    // Filtrar apoyos otorgados por CURP
-    const otorgadosFiltrados = this.todosApoyosOtorgados.filter(apoyo => 
-      apoyo.curp.includes(curpBuscado)
-    );
-    
-    // Filtrar apoyos registrados por CURP
-    const pendientesFiltrados = this.todosApoyosPendientes.filter(apoyo => 
-      apoyo.curp.includes(curpBuscado)
-    );
-
-    this.apoyosOtorgados.set(otorgadosFiltrados);
-    this.apoyosPendientes.set(pendientesFiltrados);
   }
 
-  // Método para recargar datos desde el backend (útil para actualizaciones)
-  recargarDatos(): void {
-    // TODO: Implementar llamada al servicio del backend
-    this.cargarDatos();
-    this.filtrarPorCurp();
+  // Métodos helper para el template
+  totalActual(): number {
+    return this.tabActivo() === 'otorgados' ? this.totalOtorgados() : this.totalPendientes();
   }
 
-  // Método helper para formatear montos
+  registrosActualesLength(): number {
+    return this.tabActivo() === 'otorgados' ? this.apoyosOtorgados().length : this.apoyosPendientes().length;
+  }
+
+  hasMoreActual(): boolean {
+    return this.tabActivo() === 'otorgados' ? this.hasMoreOtorgados() : this.hasMorePendientes();
+  }
+
   formatearMonto(monto: number): string {
     return new Intl.NumberFormat('es-MX', {
       style: 'currency',
@@ -198,7 +241,6 @@ export class HomeDependencia implements OnInit {
     }).format(monto);
   }
 
-  // Método helper para formatear fechas
   formatearFecha(fecha: string): string {
     return new Date(fecha).toLocaleDateString('es-MX', {
       year: 'numeric',
