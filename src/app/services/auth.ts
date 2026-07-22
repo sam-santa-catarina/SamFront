@@ -2,7 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, catchError, map, of, tap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { LoginResponse, RefreshResponse, ApiErrorBody } from '../models/auth.model';
+import { LoginResponse, RefreshResponse, ApiErrorBody, UsuarioListado, UsuariosResponse } from '../models/auth.model';
 
 export interface LoginResult {
   role: number;
@@ -88,18 +88,37 @@ export class Auth {
     );
   }
 
+  listar(): Observable<UsuarioListado[]> {
+    return this.http
+      .get<UsuariosResponse>(`${this.baseUrl}/`)
+      .pipe(map((res) => res.data));
+  }
+
+  reiniciar(id_usuario: number): Observable<{ message: string }> {
+    return this.http.post<{ message: string }>(
+      `${this.baseUrl}/reset-user`,
+      { id_usuario }
+    );
+  }
+
   changePassword(contrasena_actual: string, contrasena_nueva: string): Observable<{ message: string }> {
     return this.http
-      .post<{ message: string }>(
-        `${this.baseUrl}/change-password`,
-        { contrasena_actual, contrasena_nueva },
-        { withCredentials: true }
+    .post<RefreshResponse & { message: string }>(
+      `${this.baseUrl}/change-password`,
+      { contrasena_actual, contrasena_nueva },
+      { withCredentials: true }
+    )
+    .pipe(
+      tap((res) => {
+        this.accessToken.set(res.tokens.access_token);
+        this.currentUser.set(res.user);
+        this.requiresPasswordChange.set(res.requiere_cambio_contrasena);
+      }),
+      map((res) => ({ message: res.message })),
+      catchError((err: HttpErrorResponse) =>
+        throwError(() => this.toAuthError(err, err.error as ApiErrorBody))
       )
-      .pipe(
-        catchError((err: HttpErrorResponse) =>
-          throwError(() => this.toAuthError(err, err.error as ApiErrorBody))
-        )
-      );
+    );
   }
 
   logout(): Observable<void> {
@@ -143,7 +162,7 @@ export class Auth {
     switch (role) {
       case 1: return '/administrador/inicio';
       case 2: return '/supervisor/inicio';
-      case 3: return '/capturista/inicio';
+      case 3: return '/dependencia/inicio';
       default: return '/iniciar-sesion';
     }
   }
