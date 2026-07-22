@@ -1,4 +1,4 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://tu-dominio-de-produccion.com'
+  apiUrl: 'https://samback-os15.onrender.com'
 };
