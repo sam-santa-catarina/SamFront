@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { HttpClient, HttpErrorResponse, HttpResponse } from '@angular/common/http';
+import { Observable, catchError, from, map, of, switchMap, throwError } from 'rxjs';
 import { environment } from '../../environments/environment';
 
 export interface ApoyoOtorgadoResponse {
@@ -47,6 +47,33 @@ export interface ApoyosPendientesListResponse {
   hasMore: boolean;
 }
 
+// --- Resultado de importar un Excel (otorgados o pendientes) ---
+
+export interface ResumenImportacion {
+  insertados: number;
+  actualizados?: number;
+  ignorados: number;
+  errores: number;
+  total_procesados: number;
+}
+
+export interface ImportResultadoExito {
+  tipo: 'exito';
+  mensaje: string;
+  insertados: number;
+  actualizados?: number;
+  ignorados?: number;
+  total: number;
+}
+
+export interface ImportResultadoErrores {
+  tipo: 'errores';
+  archivoNombre: string;
+  resumen: ResumenImportacion | null;
+}
+
+export type ImportResultado = ImportResultadoExito | ImportResultadoErrores;
+
 @Injectable({ providedIn: 'root' })
 export class ApoyosService {
   private readonly http = inject(HttpClient);
@@ -63,14 +90,14 @@ export class ApoyosService {
   }): Observable<ApoyosListResponse> {
     let url = `${this.baseUrl}/`;
     const queryParams = new URLSearchParams();
-    
+
     if (params?.offset !== undefined) queryParams.set('offset', params.offset.toString());
     if (params?.limit !== undefined) queryParams.set('limit', params.limit.toString());
     if (params?.curp) queryParams.set('curp', params.curp);
-    
+
     const queryString = queryParams.toString();
     if (queryString) url += `?${queryString}`;
-    
+
     return this.http.get<ApoyosListResponse>(url, { withCredentials: true });
   }
 
@@ -85,14 +112,127 @@ export class ApoyosService {
   }): Observable<ApoyosPendientesListResponse> {
     let url = `${this.baseUrl}/pendientes`;
     const queryParams = new URLSearchParams();
-    
+
     if (params?.offset !== undefined) queryParams.set('offset', params.offset.toString());
     if (params?.limit !== undefined) queryParams.set('limit', params.limit.toString());
     if (params?.curp) queryParams.set('curp', params.curp);
-    
+
     const queryString = queryParams.toString();
     if (queryString) url += `?${queryString}`;
-    
+
     return this.http.get<ApoyosPendientesListResponse>(url, { withCredentials: true });
+  }
+
+  /**
+   * POST /api/apoyos/importar
+   * Sube un Excel de apoyos OTORGADOS (datos completos).
+   */
+  importarOtorgados(file: File): Observable<ImportResultado> {
+    return this.subirArchivo(`${this.baseUrl}/importar`, file);
+  }
+
+  /**
+   * POST /api/apoyos/importar-pendientes
+   * Sube un Excel de apoyos PENDIENTES (datos básicos).
+   */
+  importarPendientes(file: File): Observable<ImportResultado> {
+    return this.subirArchivo(`${this.baseUrl}/importar-pendientes`, file);
+  }
+
+  // --- Internos ---
+
+  /**
+   * El backend responde de dos formas distintas para el mismo endpoint:
+   * - JSON (200) cuando todas las filas se procesaron sin error.
+   * - Un archivo .xlsx descargable (200) cuando hubo filas con error,
+   *   con un header X-Import-Result con el resumen en JSON.
+   * Pedimos la respuesta siempre como blob y decidimos cuál es cuál
+   * revisando el Content-Type.
+   */
+  private subirArchivo(url: string, file: File): Observable<ImportResultado> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    return this.http
+      .post(url, formData, {
+        withCredentials: true,
+        observe: 'response',
+        responseType: 'blob'
+      })
+      .pipe(
+        switchMap((response) => this.procesarRespuesta(response)),
+        catchError((err: HttpErrorResponse) => this.procesarError(err))
+      );
+  }
+
+  private procesarRespuesta(response: HttpResponse<Blob>): Observable<ImportResultado> {
+    const contentType = response.headers.get('content-type') ?? '';
+    const blob = response.body as Blob;
+
+    if (contentType.includes('application/json')) {
+      return from(blob.text()).pipe(
+        map((texto) => {
+          const cuerpo = JSON.parse(texto);
+          const resultado: ImportResultadoExito = {
+            tipo: 'exito',
+            mensaje: cuerpo.message,
+            insertados: cuerpo.insertados,
+            actualizados: cuerpo.actualizados,
+            ignorados: cuerpo.ignorados,
+            total: cuerpo.total
+          };
+          return resultado;
+        })
+      );
+    }
+
+    // Es el Excel de errores
+    const disposicion = response.headers.get('content-disposition') ?? '';
+    const match = disposicion.match(/filename="?([^";]+)"?/i);
+    const archivoNombre = match ? match[1] : 'errores_importacion.xlsx';
+
+    const resumenHeader = response.headers.get('x-import-result');
+    let resumen: ResumenImportacion | null = null;
+    if (resumenHeader) {
+      try {
+        resumen = JSON.parse(resumenHeader);
+      } catch {
+        resumen = null;
+      }
+    }
+
+    this.descargarBlob(blob, archivoNombre);
+
+    const resultado: ImportResultadoErrores = { tipo: 'errores', archivoNombre, resumen };
+    return of(resultado);
+  }
+
+  private procesarError(err: HttpErrorResponse): Observable<never> {
+    if (err.error instanceof Blob) {
+      return from(err.error.text()).pipe(
+        switchMap((texto) => {
+          let mensaje = 'Ocurrió un error al importar el archivo.';
+          try {
+            const cuerpo = JSON.parse(texto);
+            mensaje = cuerpo.message || cuerpo.error || mensaje;
+          } catch {
+            // El cuerpo no era JSON, se deja el mensaje genérico
+          }
+          return throwError(() => new Error(mensaje));
+        })
+      );
+    }
+    return throwError(() => new Error(err.message || 'Ocurrió un error al importar el archivo.'));
+  }
+
+  private descargarBlob(blob: Blob, nombreArchivo: string): void {
+    const url = window.URL.createObjectURL(blob);
+    const enlace = document.createElement('a');
+    enlace.href = url;
+    enlace.download = nombreArchivo;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    window.URL.revokeObjectURL(url);
   }
 }
