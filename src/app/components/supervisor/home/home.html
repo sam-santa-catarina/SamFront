@@ -190,7 +190,7 @@
                 >
                   <option value="">Todas las dependencias</option>
                   @for (dep of dependencias(); track dep.id_dependencia) {
-                    <option [value]="dep.nombre_dependencia">{{ dep.nombre_dependencia }}</option>
+                    <option [value]="dep.id_dependencia">{{ dep.nombre_dependencia }}</option>
                   }
                 </select>
                 <svg class="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -313,14 +313,14 @@
               <div class="relative">
                 <label for="filtro-dependencia-pendientes" class="sr-only">Filtrar por dependencia</label>
                 <select
-                  id="filtro-dependencia-pendientes"
+                  id="filtro-dependencia-otorgados"
                   [(ngModel)]="filtroDependencia"
                   (ngModelChange)="filtrarPorDependencia()"
                   class="appearance-none rounded-xl border border-slate-200 bg-white pl-4 pr-10 py-3 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
                 >
                   <option value="">Todas las dependencias</option>
                   @for (dep of dependencias(); track dep.id_dependencia) {
-                    <option [value]="dep.nombre_dependencia">{{ dep.nombre_dependencia }}</option>
+                    <option [value]="dep.id_dependencia">{{ dep.nombre_dependencia }}</option>
                   }
                 </select>
                 <svg class="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">

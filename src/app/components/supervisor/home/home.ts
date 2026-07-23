@@ -52,7 +52,7 @@ export class HomeSupervisor implements OnInit {
 
   readonly tabActivo = signal<TipoCarga>('otorgados');
   readonly filtroCurp = signal('');
-  readonly filtroDependencia = signal('');
+  readonly filtroDependencia = signal<number | ''>('');
 
   // Estado de carga
   readonly loading = signal(false);
@@ -113,8 +113,12 @@ export class HomeSupervisor implements OnInit {
     if (curpBuscado && curpBuscado.length >= 4) {
       params.curp = curpBuscado;
     }
+    const dependenciaBuscada = this.filtroDependencia();
+    if (dependenciaBuscada !== '') {
+      params.id_dependencia = dependenciaBuscada;
+    }
 
-    this.apoyosService.listarApoyos(params)
+    this.apoyosService.listarApoyosSupervisor(params)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
@@ -168,8 +172,12 @@ export class HomeSupervisor implements OnInit {
     if (curpBuscado && curpBuscado.length >= 4) {
       params.curp = curpBuscado;
     }
+    const dependenciaBuscada = this.filtroDependencia();
+    if (dependenciaBuscada !== '') {
+      params.id_dependencia = dependenciaBuscada;
+    }
 
-    this.apoyosService.listarApoyosPendientes(params)
+    this.apoyosService.listarApoyosPendientesSupervisor(params)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
@@ -222,46 +230,14 @@ export class HomeSupervisor implements OnInit {
 
   cambiarTab(tab: TipoCarga): void {
     this.tabActivo.set(tab);
-    // Al cambiar de pestaña, aplicar filtro de dependencia localmente
-    this.aplicarFiltroDependencia();
   }
 
   filtrarPorCurp(): void {
-    // Reiniciar y recargar con filtro de CURP desde el backend
     this.cargarInicial();
   }
 
   filtrarPorDependencia(): void {
-    // Aplicar filtro de dependencia localmente (sin recargar del backend)
-    this.aplicarFiltroDependencia();
-  }
-
-  private aplicarFiltroDependencia(): void {
-    const dependenciaBuscada = this.filtroDependencia().trim();
-    
-    if (this.tabActivo() === 'otorgados') {
-      if (!dependenciaBuscada) {
-        // Si no hay filtro, recargar todos los datos
-        this.cargarOtorgados(true);
-        return;
-      }
-      
-      // Filtrar localmente de los datos ya cargados
-      const filtrados = this.apoyosOtorgados().filter(apoyo => 
-        apoyo.dependencia === dependenciaBuscada
-      );
-      this.apoyosOtorgados.set(filtrados);
-    } else {
-      if (!dependenciaBuscada) {
-        this.cargarPendientes(true);
-        return;
-      }
-      
-      const filtrados = this.apoyosPendientes().filter(apoyo => 
-        apoyo.dependencia === dependenciaBuscada
-      );
-      this.apoyosPendientes.set(filtrados);
-    }
+    this.cargarInicial();
   }
 
   cargarMas(): void {
