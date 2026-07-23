@@ -124,6 +124,56 @@ export class ApoyosService {
   }
 
   /**
+   * GET /api/apoyos/supervisor/otorgados
+   * Exclusivo para Supervisor. Igual que listarApoyos, pero permite
+   * filtrar también por dependencia directamente en el backend.
+   */
+  listarApoyosSupervisor(params?: {
+    offset?: number;
+    limit?: number;
+    curp?: string;
+    id_dependencia?: number;
+  }): Observable<ApoyosListResponse> {
+    let url = `${this.baseUrl}/supervisor/otorgados`;
+    const queryParams = new URLSearchParams();
+
+    if (params?.offset !== undefined) queryParams.set('offset', params.offset.toString());
+    if (params?.limit !== undefined) queryParams.set('limit', params.limit.toString());
+    if (params?.curp) queryParams.set('curp', params.curp);
+    if (params?.id_dependencia !== undefined) queryParams.set('id_dependencia', params.id_dependencia.toString());
+
+    const queryString = queryParams.toString();
+    if (queryString) url += `?${queryString}`;
+
+    return this.http.get<ApoyosListResponse>(url, { withCredentials: true });
+  }
+
+  /**
+   * GET /api/apoyos/supervisor/pendientes
+   * Exclusivo para Supervisor. Igual que listarApoyosPendientes, pero
+   * permite filtrar también por dependencia directamente en el backend.
+   */
+  listarApoyosPendientesSupervisor(params?: {
+    offset?: number;
+    limit?: number;
+    curp?: string;
+    id_dependencia?: number;
+  }): Observable<ApoyosPendientesListResponse> {
+    let url = `${this.baseUrl}/supervisor/pendientes`;
+    const queryParams = new URLSearchParams();
+
+    if (params?.offset !== undefined) queryParams.set('offset', params.offset.toString());
+    if (params?.limit !== undefined) queryParams.set('limit', params.limit.toString());
+    if (params?.curp) queryParams.set('curp', params.curp);
+    if (params?.id_dependencia !== undefined) queryParams.set('id_dependencia', params.id_dependencia.toString());
+
+    const queryString = queryParams.toString();
+    if (queryString) url += `?${queryString}`;
+
+    return this.http.get<ApoyosPendientesListResponse>(url, { withCredentials: true });
+  }
+
+  /**
    * POST /api/apoyos/importar
    * Sube un Excel de apoyos OTORGADOS (datos completos).
    */
