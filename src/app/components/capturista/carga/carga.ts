@@ -76,7 +76,7 @@ const RUTA_PLANTILLA_PENDIENTES = '/assets/plantillas/plantilla-apoyos-pendiente
   imports: [CommonModule, RouterLink],
   templateUrl: './carga.html'
 })
-export class CargaApoyos {
+export class CargaApoyosDependencia {
   private readonly auth = inject(Auth);
   private readonly apoyosService = inject(ApoyosService);
 

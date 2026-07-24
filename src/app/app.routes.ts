@@ -10,6 +10,8 @@ import { ID_ROL_ADMINISTRADOR, ID_ROL_SUPERVISOR, ID_ROL_CAPTURISTA } from './co
 import { Usuarios } from './components/admin/usuarios/usuarios';
 import { Auditoria } from './components/admin/auditoria/auditoria';
 import { CargaApoyos } from './components/admin/carga/carga';
+import { ActualizarMontosComponent } from './components/capturista/actualizar-montos/actualizar-montos';
+import { CargaApoyosDependencia } from './components/capturista/carga/carga';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'iniciar-sesion', pathMatch: 'full' },
@@ -35,6 +37,8 @@ export const routes: Routes = [
     data: { roles: [ID_ROL_CAPTURISTA] },
     children: [
       { path: 'inicio', component: HomeDependencia, title: 'Inicio - Dependencia' },
+      { path: 'monto', component: ActualizarMontosComponent, title: 'Actualizar Montos - Dependencia' },
+      { path: 'carga', component: CargaApoyosDependencia, title: 'Cargar Apoyos - Dependencia' },
     ],
   },
 

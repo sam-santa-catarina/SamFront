@@ -20,6 +20,7 @@ interface ApoyoOtorgado {
   programa: string;
   monto: number;
   fechaApoyo: string;
+  fechaCarga: string;
 }
 
 interface ApoyoPendiente {
@@ -27,6 +28,8 @@ interface ApoyoPendiente {
   curp: string;
   conceptoApoyo: string;
   programa: string;
+  estatus: string;
+  fechaCarga: string;
 }
 
 @Component({
@@ -106,7 +109,8 @@ export class HomeDependencia implements OnInit {
             conceptoApoyo: apoyo.nombre_concepto,
             programa: apoyo.programa,
             monto: apoyo.monto,
-            fechaApoyo: apoyo.fecha_apoyo
+            fechaApoyo: apoyo.fecha_apoyo,
+            fechaCarga: apoyo.created_at
           }));
 
           if (reset) {
@@ -149,7 +153,9 @@ export class HomeDependencia implements OnInit {
             nombreCompleto: apoyo.nombre_completo,
             curp: apoyo.curp_beneficiario,
             conceptoApoyo: apoyo.nombre_concepto,
-            programa: apoyo.programa
+            programa: apoyo.programa,
+            estatus: apoyo.estatus,
+            fechaCarga: apoyo.created_at
           }));
 
           if (reset) {
