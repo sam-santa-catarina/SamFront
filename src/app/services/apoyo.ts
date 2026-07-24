@@ -27,6 +27,7 @@ export interface ApoyoPendienteResponse {
   dependencia: string;
   programa: string;
   nombre_concepto: string;
+  estatus: string;
   capturado_por: string;
   created_at: string;
 }
@@ -47,10 +48,10 @@ export interface ApoyosPendientesListResponse {
   hasMore: boolean;
 }
 
-// --- Resultado de importar un Excel (otorgados o pendientes) ---
+// --- Resultado de importar un Excel (otorgados, pendientes o actualización de montos) ---
 
 export interface ResumenImportacion {
-  insertados: number;
+  insertados?: number;
   actualizados?: number;
   ignorados: number;
   errores: number;
@@ -60,7 +61,7 @@ export interface ResumenImportacion {
 export interface ImportResultadoExito {
   tipo: 'exito';
   mensaje: string;
-  insertados: number;
+  insertados?: number;
   actualizados?: number;
   ignorados?: number;
   total: number;
@@ -126,13 +127,16 @@ export class ApoyosService {
   /**
    * GET /api/apoyos/supervisor/otorgados
    * Exclusivo para Supervisor. Igual que listarApoyos, pero permite
-   * filtrar también por dependencia directamente en el backend.
+   * filtrar también por dependencia, calle y número exterior
+   * directamente en el backend.
    */
   listarApoyosSupervisor(params?: {
     offset?: number;
     limit?: number;
     curp?: string;
     id_dependencia?: number;
+    calle?: string;
+    numero_exterior?: string;
   }): Observable<ApoyosListResponse> {
     let url = `${this.baseUrl}/supervisor/otorgados`;
     const queryParams = new URLSearchParams();
@@ -141,6 +145,8 @@ export class ApoyosService {
     if (params?.limit !== undefined) queryParams.set('limit', params.limit.toString());
     if (params?.curp) queryParams.set('curp', params.curp);
     if (params?.id_dependencia !== undefined) queryParams.set('id_dependencia', params.id_dependencia.toString());
+    if (params?.calle) queryParams.set('calle', params.calle);
+    if (params?.numero_exterior) queryParams.set('numero_exterior', params.numero_exterior);
 
     const queryString = queryParams.toString();
     if (queryString) url += `?${queryString}`;
@@ -189,6 +195,44 @@ export class ApoyosService {
     return this.subirArchivo(`${this.baseUrl}/importar-pendientes`, file);
   }
 
+  /**
+   * GET /api/apoyos/exportar-sin-monto
+   * Descarga el Excel de apoyos otorgados sin monto registrado, listos
+   * para llenarse y volver a subirse con actualizarMonto().
+   *
+   * Para Administrador hay que pasar id_dependencia. Para Capturista/
+   * Dependencia se omite: el backend usa automáticamente su propia
+   * dependencia.
+   */
+  exportarSinMonto(id_dependencia?: number): Observable<void> {
+    let url = `${this.baseUrl}/exportar-sin-monto`;
+    if (id_dependencia !== undefined) {
+      url += `?id_dependencia=${id_dependencia}`;
+    }
+
+    return this.http
+      .get(url, { withCredentials: true, observe: 'response', responseType: 'blob' })
+      .pipe(
+        map((response) => {
+          const blob = response.body as Blob;
+          const disposicion = response.headers.get('content-disposition') ?? '';
+          const match = disposicion.match(/filename="?([^";]+)"?/i);
+          const archivoNombre = match ? match[1] : 'apoyos-sin-monto.xlsx';
+          this.descargarBlob(blob, archivoNombre);
+        }),
+        catchError((err: HttpErrorResponse) => this.procesarErrorBlob(err))
+      );
+  }
+
+  /**
+   * POST /api/apoyos/actualizar-monto
+   * Sube el Excel generado por exportarSinMonto() (con ID_APOYO y MONTO
+   * ya llenos) y actualiza únicamente el monto de cada registro indicado.
+   */
+  actualizarMonto(file: File): Observable<ImportResultado> {
+    return this.subirArchivo(`${this.baseUrl}/actualizar-monto`, file);
+  }
+
   // --- Internos ---
 
   /**
@@ -211,7 +255,7 @@ export class ApoyosService {
       })
       .pipe(
         switchMap((response) => this.procesarRespuesta(response)),
-        catchError((err: HttpErrorResponse) => this.procesarError(err))
+        catchError((err: HttpErrorResponse) => this.procesarErrorBlob(err))
       );
   }
 
@@ -257,11 +301,11 @@ export class ApoyosService {
     return of(resultado);
   }
 
-  private procesarError(err: HttpErrorResponse): Observable<never> {
+  private procesarErrorBlob(err: HttpErrorResponse): Observable<never> {
     if (err.error instanceof Blob) {
       return from(err.error.text()).pipe(
         switchMap((texto) => {
-          let mensaje = 'Ocurrió un error al importar el archivo.';
+          let mensaje = 'Ocurrió un error al procesar el archivo.';
           try {
             const cuerpo = JSON.parse(texto);
             mensaje = cuerpo.message || cuerpo.error || mensaje;
@@ -272,7 +316,7 @@ export class ApoyosService {
         })
       );
     }
-    return throwError(() => new Error(err.message || 'Ocurrió un error al importar el archivo.'));
+    return throwError(() => new Error(err.message || 'Ocurrió un error al procesar el archivo.'));
   }
 
   private descargarBlob(blob: Blob, nombreArchivo: string): void {

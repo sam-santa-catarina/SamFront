@@ -1,12 +1,20 @@
 import { ChangeDetectionStrategy, Component, inject, signal, OnInit, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
+import { Subject, catchError, debounceTime, map, of, switchMap } from 'rxjs';
 import { Auth } from '../../../services/auth';
 import { Router, RouterLink } from '@angular/router';
-import { ApoyosService, ApoyoOtorgadoResponse, ApoyoPendienteResponse } from '../../../services/apoyo';
+import {
+  ApoyosService,
+  ApoyoOtorgadoResponse,
+  ApoyoPendienteResponse,
+  ApoyosListResponse,
+  ApoyosPendientesListResponse
+} from '../../../services/apoyo';
 import { DependenciasService, Dependencia } from '../../../services/dependencias';
 
 const LIMITE = 30;
+const DEBOUNCE_FILTROS_MS = 350;
 
 type TipoCarga = 'otorgados' | 'pendientes';
 
@@ -22,6 +30,7 @@ interface ApoyoOtorgado {
   programa: string;
   monto: number;
   fechaApoyo: string;
+  fechaCarga: string;
 }
 
 interface ApoyoPendiente {
@@ -30,6 +39,7 @@ interface ApoyoPendiente {
   dependencia: string;
   conceptoApoyo: string;
   programa: string;
+  fechaCarga: string;
 }
 
 @Component({
@@ -53,6 +63,8 @@ export class HomeSupervisor implements OnInit {
   readonly tabActivo = signal<TipoCarga>('otorgados');
   readonly filtroCurp = signal('');
   readonly filtroDependencia = signal<number | ''>('');
+  readonly filtroCalle = signal('');
+  readonly filtroNumeroExterior = signal('');
 
   // Estado de carga
   readonly loading = signal(false);
@@ -75,139 +87,176 @@ export class HomeSupervisor implements OnInit {
   private offsetOtorgados = 0;
   private offsetPendientes = 0;
 
+  // Se emite cada vez que el usuario cambia un filtro (CURP, dependencia,
+  // calle o número exterior). El debounceTime evita mandar una petición
+  // por cada tecla que escribe.
+  private readonly filtroChange$ = new Subject<void>();
+
+  // Disparadores reales de las peticiones HTTP. Cada uno emite `true`
+  // para reiniciar la búsqueda (offset 0) o `false` para "cargar más".
+  // Al usar switchMap sobre estos Subjects, cualquier petición anterior
+  // que siga en vuelo se cancela en cuanto llega un nuevo disparo — así
+  // nunca puede llegar tarde una respuesta vieja y pisar el resultado
+  // más reciente, sin importar qué tan rápido escriba el usuario.
+  private readonly triggerOtorgados$ = new Subject<boolean>();
+  private readonly triggerPendientes$ = new Subject<boolean>();
+
   ngOnInit(): void {
     this.cargarDependencias();
-    this.cargarInicial();
+    this.configurarBusquedaOtorgados();
+    this.configurarBusquedaPendientes();
+    this.configurarDebounceFiltros();
+
+    // Carga inicial, sin esperar el debounce
+    this.triggerOtorgados$.next(true);
+    this.triggerPendientes$.next(true);
+  }
+
+  private configurarDebounceFiltros(): void {
+    this.filtroChange$
+      .pipe(debounceTime(DEBOUNCE_FILTROS_MS), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.triggerOtorgados$.next(true);
+        this.triggerPendientes$.next(true);
+      });
+  }
+
+  private configurarBusquedaOtorgados(): void {
+    this.triggerOtorgados$
+      .pipe(
+        switchMap((reset) => {
+          if (reset) this.offsetOtorgados = 0;
+          this.loading.set(reset);
+          this.loadingMore.set(!reset);
+          this.errorMessage.set(null);
+
+          const params = this.buildParamsOtorgados(reset);
+
+          return this.apoyosService.listarApoyosSupervisor(params).pipe(
+            map((response) => ({ response, reset })),
+            catchError(() => {
+              console.error('Error al cargar apoyos otorgados');
+              return of({ response: null as ApoyosListResponse | null, reset });
+            })
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(({ response, reset }) => {
+        this.loading.set(false);
+        this.loadingMore.set(false);
+
+        if (!response) {
+          this.errorMessage.set('No se pudieron cargar los apoyos otorgados. Intenta de nuevo.');
+          return;
+        }
+
+        const nuevos = response.data.map((apoyo: ApoyoOtorgadoResponse) => ({
+          nombreCompleto: apoyo.nombre_completo,
+          curp: apoyo.curp_beneficiario,
+          dependencia: apoyo.dependencia,
+          localidad: apoyo.nombre_localidad,
+          calle: apoyo.calle,
+          numeroExterior: apoyo.numero_exterior,
+          cantidad: apoyo.cantidad,
+          conceptoApoyo: apoyo.nombre_concepto,
+          programa: apoyo.programa,
+          monto: apoyo.monto,
+          fechaApoyo: apoyo.fecha_apoyo,
+          fechaCarga: apoyo.created_at
+        }));
+
+        this.apoyosOtorgados.set(reset ? nuevos : [...this.apoyosOtorgados(), ...nuevos]);
+        this.totalOtorgados.set(response.total);
+        this.hasMoreOtorgados.set(response.hasMore);
+        this.offsetOtorgados += nuevos.length;
+      });
+  }
+
+  private configurarBusquedaPendientes(): void {
+    this.triggerPendientes$
+      .pipe(
+        switchMap((reset) => {
+          if (reset) this.offsetPendientes = 0;
+          this.loading.set(reset);
+          this.loadingMore.set(!reset);
+          this.errorMessage.set(null);
+
+          const params = this.buildParamsPendientes(reset);
+
+          return this.apoyosService.listarApoyosPendientesSupervisor(params).pipe(
+            map((response) => ({ response, reset })),
+            catchError(() => {
+              console.error('Error al cargar apoyos pendientes');
+              return of({ response: null as ApoyosPendientesListResponse | null, reset });
+            })
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(({ response, reset }) => {
+        this.loading.set(false);
+        this.loadingMore.set(false);
+
+        if (!response) {
+          this.errorMessage.set('No se pudieron cargar los apoyos pendientes. Intenta de nuevo.');
+          return;
+        }
+
+        const nuevos = response.data.map((apoyo: ApoyoPendienteResponse) => ({
+          nombreCompleto: apoyo.nombre_completo,
+          curp: apoyo.curp_beneficiario,
+          dependencia: apoyo.dependencia,
+          conceptoApoyo: apoyo.nombre_concepto,
+          programa: apoyo.programa,
+          fechaCarga: apoyo.created_at
+        }));
+
+        this.apoyosPendientes.set(reset ? nuevos : [...this.apoyosPendientes(), ...nuevos]);
+        this.totalPendientes.set(response.total);
+        this.hasMorePendientes.set(response.hasMore);
+        this.offsetPendientes += nuevos.length;
+      });
+  }
+
+  private buildParamsOtorgados(reset: boolean) {
+    const params: any = { limit: LIMITE, offset: reset ? 0 : this.offsetOtorgados };
+
+    const curpBuscado = this.filtroCurp().trim().toUpperCase();
+    if (curpBuscado && curpBuscado.length >= 4) params.curp = curpBuscado;
+
+    const dependenciaBuscada = this.filtroDependencia();
+    if (dependenciaBuscada !== '') params.id_dependencia = dependenciaBuscada;
+
+    const calleBuscada = this.filtroCalle().trim();
+    if (calleBuscada) params.calle = calleBuscada;
+
+    const numeroBuscado = this.filtroNumeroExterior().trim();
+    if (numeroBuscado) params.numero_exterior = numeroBuscado;
+
+    return params;
+  }
+
+  private buildParamsPendientes(reset: boolean) {
+    const params: any = { limit: LIMITE, offset: reset ? 0 : this.offsetPendientes };
+
+    const curpBuscado = this.filtroCurp().trim().toUpperCase();
+    if (curpBuscado && curpBuscado.length >= 4) params.curp = curpBuscado;
+
+    const dependenciaBuscada = this.filtroDependencia();
+    if (dependenciaBuscada !== '') params.id_dependencia = dependenciaBuscada;
+
+    // Calle y número exterior no aplican a pendientes: en ese estado
+    // esos campos todavía no se han capturado.
+
+    return params;
   }
 
   private cargarDependencias(): void {
     this.dependenciasService.listarDependencias().subscribe({
-      next: (deps) => {
-        this.dependencias.set(deps);
-      },
-      error: (error) => {
-        console.error('Error al cargar dependencias:', error);
-      }
+      next: (deps) => this.dependencias.set(deps),
+      error: (error) => console.error('Error al cargar dependencias:', error)
     });
-  }
-
-  private cargarInicial(): void {
-    this.offsetOtorgados = 0;
-    this.offsetPendientes = 0;
-    this.cargarOtorgados(true);
-    this.cargarPendientes(true);
-  }
-
-  private cargarOtorgados(reset: boolean = false): void {
-    if (reset) {
-      this.loading.set(true);
-      this.offsetOtorgados = 0;
-    } else {
-      this.loadingMore.set(true);
-    }
-
-    this.errorMessage.set(null);
-
-    const params: any = { limit: LIMITE, offset: reset ? 0 : this.offsetOtorgados };
-    const curpBuscado = this.filtroCurp().trim().toUpperCase();
-    if (curpBuscado && curpBuscado.length >= 4) {
-      params.curp = curpBuscado;
-    }
-    const dependenciaBuscada = this.filtroDependencia();
-    if (dependenciaBuscada !== '') {
-      params.id_dependencia = dependenciaBuscada;
-    }
-
-    this.apoyosService.listarApoyosSupervisor(params)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (response) => {
-          const nuevos = response.data.map((apoyo: ApoyoOtorgadoResponse) => ({
-            nombreCompleto: apoyo.nombre_completo,
-            curp: apoyo.curp_beneficiario,
-            dependencia: apoyo.dependencia,
-            localidad: apoyo.nombre_localidad,
-            calle: apoyo.calle,
-            numeroExterior: apoyo.numero_exterior,
-            cantidad: apoyo.cantidad,
-            conceptoApoyo: apoyo.nombre_concepto,
-            programa: apoyo.programa,
-            monto: apoyo.monto,
-            fechaApoyo: apoyo.fecha_apoyo
-          }));
-
-          if (reset) {
-            this.apoyosOtorgados.set(nuevos);
-          } else {
-            this.apoyosOtorgados.update(actuales => [...actuales, ...nuevos]);
-          }
-
-          this.totalOtorgados.set(response.total);
-          this.hasMoreOtorgados.set(response.hasMore);
-          this.offsetOtorgados += nuevos.length;
-          this.loading.set(false);
-          this.loadingMore.set(false);
-        },
-        error: (error) => {
-          console.error('Error al cargar apoyos otorgados:', error);
-          this.loading.set(false);
-          this.loadingMore.set(false);
-          this.errorMessage.set('No se pudieron cargar los apoyos otorgados. Intenta de nuevo.');
-        }
-      });
-  }
-
-  private cargarPendientes(reset: boolean = false): void {
-    if (reset) {
-      this.loading.set(true);
-      this.offsetPendientes = 0;
-    } else {
-      this.loadingMore.set(true);
-    }
-
-    this.errorMessage.set(null);
-
-    const params: any = { limit: LIMITE, offset: reset ? 0 : this.offsetPendientes };
-    const curpBuscado = this.filtroCurp().trim().toUpperCase();
-    if (curpBuscado && curpBuscado.length >= 4) {
-      params.curp = curpBuscado;
-    }
-    const dependenciaBuscada = this.filtroDependencia();
-    if (dependenciaBuscada !== '') {
-      params.id_dependencia = dependenciaBuscada;
-    }
-
-    this.apoyosService.listarApoyosPendientesSupervisor(params)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (response) => {
-          const nuevos = response.data.map((apoyo: ApoyoPendienteResponse) => ({
-            nombreCompleto: apoyo.nombre_completo,
-            curp: apoyo.curp_beneficiario,
-            dependencia: apoyo.dependencia,
-            conceptoApoyo: apoyo.nombre_concepto,
-            programa: apoyo.programa
-          }));
-
-          if (reset) {
-            this.apoyosPendientes.set(nuevos);
-          } else {
-            this.apoyosPendientes.update(actuales => [...actuales, ...nuevos]);
-          }
-
-          this.totalPendientes.set(response.total);
-          this.hasMorePendientes.set(response.hasMore);
-          this.offsetPendientes += nuevos.length;
-          this.loading.set(false);
-          this.loadingMore.set(false);
-        },
-        error: (error) => {
-          console.error('Error al cargar apoyos pendientes:', error);
-          this.loading.set(false);
-          this.loadingMore.set(false);
-          this.errorMessage.set('No se pudieron cargar los apoyos pendientes. Intenta de nuevo.');
-        }
-      });
   }
 
   toggleUserMenu(): void {
@@ -223,9 +272,7 @@ export class HomeSupervisor implements OnInit {
   }
 
   cerrarSesion(): void {
-    this.auth.logout().subscribe(() => {
-      this.router.navigateByUrl('/iniciar-sesion');
-    });
+    this.auth.logout().subscribe(() => this.router.navigateByUrl('/iniciar-sesion'));
   }
 
   cambiarTab(tab: TipoCarga): void {
@@ -233,11 +280,19 @@ export class HomeSupervisor implements OnInit {
   }
 
   filtrarPorCurp(): void {
-    this.cargarInicial();
+    this.filtroChange$.next();
   }
 
   filtrarPorDependencia(): void {
-    this.cargarInicial();
+    this.filtroChange$.next();
+  }
+
+  filtrarPorCalle(): void {
+    this.filtroChange$.next();
+  }
+
+  filtrarPorNumeroExterior(): void {
+    this.filtroChange$.next();
   }
 
   cargarMas(): void {
@@ -245,10 +300,10 @@ export class HomeSupervisor implements OnInit {
 
     if (this.tabActivo() === 'otorgados') {
       if (!this.hasMoreOtorgados()) return;
-      this.cargarOtorgados(false);
+      this.triggerOtorgados$.next(false);
     } else {
       if (!this.hasMorePendientes()) return;
-      this.cargarPendientes(false);
+      this.triggerPendientes$.next(false);
     }
   }
 
@@ -266,10 +321,7 @@ export class HomeSupervisor implements OnInit {
   }
 
   formatearMonto(monto: number): string {
-    return new Intl.NumberFormat('es-MX', {
-      style: 'currency',
-      currency: 'MXN'
-    }).format(monto);
+    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(monto);
   }
 
   formatearFecha(fecha: string): string {
